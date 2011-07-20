@@ -1,0 +1,238 @@
+__author__="huziy"
+__date__ ="$31.12.2010 4:42:33$"
+
+
+import numpy as np
+from datetime import timedelta
+import sys
+
+import application_properties
+application_properties.set_current_directory()
+
+
+
+from datetime import datetime
+from mpl_toolkits.basemap import Basemap, NetCDFFile
+
+DISCHARGE_VAR_NAME = 'water_discharge'
+date_format = '%Y_%m_%d_%H_%M'
+def get_data_from_file(path):
+    fpin = NetCDFFile(path)
+    vars = fpin.variables
+    #dims: time, cell_index
+    discharge = vars[DISCHARGE_VAR_NAME].data[:,:]
+    x_indices = vars['x-index'].data[:]
+    y_indices = vars['y-index'].data[:]
+    times = vars['time'].data[:]
+
+    date_times = []
+    for t in times:
+        date_times.append( datetime.strptime( ''.join(t) , date_format ) )
+
+    fpin.close()
+    return discharge, date_times, x_indices, y_indices
+
+
+
+# returns <>duration_days<> low flow over the period [start_month, end_month],
+# considering data in the streamflow vector which correspond to
+# times between start_date and end_date inclusive.
+#streamflows - 1D array (time)
+
+#returns dictionary {year => averaged min flow}
+def get_period_minima(streamflows, times,
+                      start_date = None, end_date = None,
+                      start_month = 1, end_month = 12, duration_days = 7):
+
+    T = timedelta(days = duration_days)
+    averaging_length = 0
+    for time in times:
+        if time - times[0] <= T:
+            averaging_length += 1
+        else:
+            break
+
+
+
+    result = {}
+    for i, time in enumerate(times):
+        time_plus_T = time + T
+        #select by date
+        if start_date != None and time < start_date:
+            continue
+
+        if end_date != None and time_plus_T > end_date:
+            break
+
+        #select by month
+        if time_plus_T.month < start_month:
+            continue
+
+        if time_plus_T.month > end_month:
+            continue
+
+
+
+        value = np.mean(streamflows[i : i + averaging_length])
+
+        the_year = time.year
+        if result.has_key(the_year):
+            if result[the_year] > value:
+                result[the_year] = value
+        else:
+            result[the_year] = value
+
+    return result
+    
+# returns <>duration_days<> high flow over the period [start_month, end_month],
+# considering data in the streamflow vector which correspond to
+# times between start_date and end_date inclusive.
+#streamflows - 1D array (time)
+
+
+#returns dictionary {year => averaged max flow}
+def get_period_maxima(streamflows, times,
+                      start_date = None, end_date = None,
+                      start_month = 1, end_month = 12, duration_days = 1):
+
+    T = timedelta(days = duration_days)
+    averaging_length = 0
+    for time in times:
+        if time - times[0] < T:
+            averaging_length += 1
+        else:
+            break
+
+    result = {}
+    for i, time in enumerate(times):
+        time_plus_T = time + T
+        #select by date
+        if start_date != None and time < start_date:
+            continue
+
+        if end_date != None and time_plus_T > end_date:
+            break
+
+        #select by month
+        if time_plus_T.month < start_month:
+            continue
+
+        if time_plus_T.month > end_month:
+            continue
+
+        value = np.mean(streamflows[i : i + averaging_length])
+
+        the_year = time.year
+        if result.has_key(the_year):
+            if result[the_year] < value:
+                result[the_year] = value
+        else:
+            result[the_year] = value
+
+    return result
+    pass
+
+
+
+#streamflow is of dimensions  (nt, n-grid-cells)
+#return 1D array of size n-grid-cells
+def get_maximums_for_domain(streamflows, times,
+                      start_date = None, end_date = None,
+                      start_month = 1,
+                      end_month = 12, duration_days = 1):
+
+    the_maxima = np.zeros((streamflows.shape[1],))
+    for pos in range(streamflows.shape[1]):
+        the_dict = get_period_maxima(streamflows[:, pos],
+                                            times,
+                                            start_date,
+                                            end_date,
+                                            start_month, end_month,
+                                            duration_days = duration_days)
+        the_maxima[pos] = np.max( the_dict.values() )
+
+    return the_maxima
+
+
+
+#streamflow is of dimensions  (nt, n-grid-cells)
+#return 1D array of size n-grid-cells
+def get_minimums_for_domain(streamflows, times,
+                      start_date = None, end_date = None,
+                      start_month = 1,
+                      end_month = 12, duration_days = 1):
+
+    result = np.zeros((streamflows.shape[1],))
+    for pos in range(streamflows.shape[1]):
+        the_dict = get_period_minima(streamflows[:, pos],
+                                            times,
+                                            start_date,
+                                            end_date,
+                                            start_month, end_month,
+                                            duration_days = duration_days)
+        result[pos] = np.min( the_dict.values() )
+    return result
+
+
+
+
+#selects annual means from data from the interval
+# [start_date; end_date), all data are taken into consideration if
+# start_date and end_date are None
+#return dictionary {yeari : meani}
+def get_annual_means(streamflows, times, start_date = None, end_date = None):
+    result = {}
+    counts = {}
+    for i, time in enumerate(times):
+        if time >= end_date:
+            break
+        if time < start_date:
+            continue
+
+        the_year = time.year
+        if not result.has_key(the_year):
+            result[the_year] = np.zeros(streamflows.shape[1])
+            counts[the_year] = 0
+            
+        result[the_year] += streamflows[i, :]
+        counts[the_year] += 1
+
+
+
+    for the_year in result.keys():
+        result[the_year] /= float( counts[the_year] )
+
+    return result
+
+
+def test_select():
+    data_file = 'data/streamflows/VplusF_newmask1/aex_discharge_1970_01_01_00_00.nc'
+    #get streamflow data
+    streamflow, times, xs, ys = get_data_from_file(data_file)
+
+
+    #test maxima selection
+    maxs = get_period_maxima(streamflow[:, 10], times, start_date = datetime(1970,1,1,0,0,0),
+                                                       end_date = datetime(2000,1,1,0,0,0),
+                                                       start_month = 4,
+                     end_month = 6, duration_days = 1)
+
+    print maxs
+
+    #test minima selection
+    maxs = get_period_maxima(streamflow[:, 10], times, start_date = datetime(1970,1,1,0,0,0),
+                            end_date = datetime(2000,1,1,0,0,0), start_month = 3,
+                            end_month = 4, duration_days = 7)
+    print maxs
+
+    #test get means
+    means = get_annual_means(streamflow, times, start_date = datetime(1970,1,1,0,0,0), 
+                                                 end_date = datetime(2000,1,1,0,0,0))
+
+    print len(means)
+    print means[1980]
+    print means[1972].shape
+
+if __name__ == "__main__":
+    test_select()
+    print "Hello World"

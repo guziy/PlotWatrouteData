@@ -1,0 +1,65 @@
+
+__author__="huziy"
+__date__ ="$1 fevr. 2011 14:27:40$"
+
+
+from datetime import datetime
+import data.data_select as data_select
+import plot2D.plot_data_2d as plot_data_2d
+import matplotlib as mpl
+
+
+#max over t
+def plot_annual_extremes(data_path = 'data/streamflows/VplusFmask_newton/aex_discharge_1970_01_01_00_00.nc',
+                         start_date = datetime(1970, 1,1, 0,0,0),
+                         end_date = datetime(2000, 1,1, 0,0,0),
+                         ):
+
+    streamflows, times, i_array, j_array = data_select.get_data_from_file(data_path)
+
+    period_start_month = 3
+    period_end_month = 4
+    the_minima = data_select.get_minimums_for_domain(streamflows, times,
+                                             start_date = start_date, end_date = end_date,
+                                             start_month = period_start_month,
+                                             end_month = period_end_month,
+                                             duration_days = 1)
+
+    plot_data_2d.plot_data(the_minima, i_array, j_array, name = "minima", title = "min",
+                            digits = 1,
+                            color_map = mpl.cm.get_cmap("OrRd", 10),
+                            minmax = (None, None),
+                            units = "m**3/s")
+
+
+
+    period_start_month = 4
+    period_end_month = 6
+    the_maximums = data_select.get_maximums_for_domain(streamflows, times,
+                                             start_date = start_date, end_date = end_date,
+                                             start_month = period_start_month,
+                                             end_month = period_end_month,
+                                             duration_days = 7)
+
+    plot_data_2d.plot_data(the_maximums, i_array, j_array, name = "maxima", title = "max",
+                            digits = 1,
+                            color_map = mpl.cm.get_cmap("OrRd", 10),
+                            minmax = (None, None),
+                            units = "m**3/s")
+
+
+
+    pass
+
+
+def main():
+
+    data_path = 'data/streamflows/VplusFmask_newton/aex_discharge_1970_01_01_00_00.nc'
+    plot_annual_extremes(data_path,
+                         start_date = datetime(1970, 1,1, 0,0,0),
+                         end_date = datetime(2000, 1,1, 0,0,0)
+                         )
+
+if __name__ == "__main__":
+    main()
+    print "Hello World"

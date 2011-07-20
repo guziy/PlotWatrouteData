@@ -1,0 +1,479 @@
+import os.path
+import sys
+__author__="huziy"
+__date__ ="$3 dec. 2010 11:21:58$"
+
+from mpl_toolkits.basemap import NetCDFFile
+import numpy as np
+import application_properties
+application_properties.set_current_directory()
+from datetime import datetime, timedelta
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+from math import *
+import pylab
+
+import matplotlib.dates as mdates
+import data.members as members
+import os
+
+import calendar
+
+#Plot number of occurences of high flow or low flow
+
+TIME_FORMAT = '%Y_%m_%d_%H_%M'
+
+inches_per_pt = 1.0 / 72.27               # Convert pt to inch
+golden_mean = (sqrt(5) - 1.0) / 2.0       # Aesthetic ratio
+fig_width = 1000 * inches_per_pt          # width in inches
+fig_height = fig_width * golden_mean      # height in inches
+fig_size = [fig_width, 2.0 * fig_height]
+
+
+params = {
+        'axes.labelsize': 14,
+        'font.size': 18,
+        'text.fontsize': 18,
+        'legend.fontsize': 14,
+        'xtick.labelsize': 16,
+        'ytick.labelsize': 16,
+        'figure.figsize': fig_size
+        }
+
+title_font_size = 25
+
+        
+pylab.rcParams.update(params)
+
+
+
+class BasinIndices():
+    def __init__(self, name, mask):
+        self.mask = mask
+        self.name = name
+        pass
+
+    def get_number_of_cells(self):
+        array = np.ma.masked_where(self.mask == 0, self.mask)
+        return array.count()
+        pass
+
+
+
+def read_basin_indices(path):
+    result = []
+    nc = NetCDFFile(path)
+    for k, v in nc.variables.iteritems():
+        result.append(BasinIndices(k, v.data))
+    return result
+    pass
+
+
+
+
+
+
+def get_day_of_year(date_obj):
+    return date_obj.timetuple().tm_yday
+
+def get_low_flow(discharge_data, times, duration_days = timedelta(days = 7),
+                   dates_of_stamp_year = None,
+                   start_date = None, end_date = None ):
+
+    assert len(dates_of_stamp_year) == len(times)
+    
+    averaging_length = 0
+    while times[averaging_length] - times[0] < duration_days:
+        averaging_length += 1
+
+    dates_to_occurrences = {}
+
+    min_value = sys.maxint
+    
+    current_year = start_date.year
+    the_min_date = None #date of the stamp year when the minimum occurred
+    for i, the_time, the_date in zip(range(len(times)), times, dates_of_stamp_year):
+        #check whether the_time inside the specified range
+        if start_date != None:
+            if start_date > the_time:
+                continue
+
+        if end_date != None:
+            if end_date <= the_time + duration_days:
+                break
+
+        if the_min_date == None:
+            the_min_date = the_date
+
+        #store day when the minimum occurred at the end of a year
+        if current_year != the_time.year:
+            min_value = sys.maxint
+            current_year = the_time.year
+            if dates_to_occurrences.has_key(the_min_date):
+                dates_to_occurrences[the_min_date] += 1
+            else:
+                dates_to_occurrences[the_min_date] = 1
+
+        value = np.mean(discharge_data[i : i + averaging_length])
+        if value < min_value:
+            min_value = value
+            the_min_date = the_date
+
+    #store day when the minimum occurred at the end of a year
+    assert min_value != sys.maxint
+    if dates_to_occurrences.has_key(the_min_date):
+        dates_to_occurrences[the_min_date] += 1
+    else:
+        dates_to_occurrences[the_min_date] = 1
+        
+    #fill the days where were not any occurrences with zeros
+    for day in get_days_of_stamp_year(year = 2000):
+        if not dates_to_occurrences.has_key(day):
+            dates_to_occurrences[day] = 0
+
+    return dates_to_occurrences
+
+
+def get_high_flow(discharge_data, times, duration_days = timedelta(days = 7),
+                   dates_of_stamp_year = None,
+                   start_date = None, end_date = None ):
+
+    #T = timedelta(days = duration_days)
+    averaging_length = 0
+    while times[averaging_length] - times[0] < duration_days:
+        averaging_length += 1
+
+    dates_to_occurrences = {}
+    max_value = -sys.maxint
+
+    current_year = times[0].year
+    for i, the_time, the_date in zip(range(len(times)), times, dates_of_stamp_year):
+        #check whether the_time inside the specified range
+        if start_date != None:
+            if start_date > the_time:
+                continue
+
+        if end_date != None:
+            if end_date < the_time + duration_days:
+                break
+        #store day when the minimum occurred at the end of a year
+        if current_year != the_time.year:
+            max_value = -sys.maxint
+            current_year = the_time.year
+            if dates_to_occurrences.has_key(the_max_date):
+                dates_to_occurrences[the_max_date] += 1
+            else:
+                dates_to_occurrences[the_max_date] = 1
+
+
+        value = np.mean(discharge_data[i : i + averaging_length])
+        if value > max_value:
+            max_value = value
+            the_max_date = the_date
+
+    assert max_value != -sys.maxint
+    #store day when the minimum occurred at the end of a year
+    if dates_to_occurrences.has_key(the_max_date):
+        dates_to_occurrences[the_max_date] += 1
+    else:
+        dates_to_occurrences[the_max_date] = 1
+    
+    #fill the days where were not any occurrences with zeros
+    for day in get_days_of_stamp_year(year = 2000):
+        if not dates_to_occurrences.has_key(day):
+            dates_to_occurrences[day] = 0
+
+    return dates_to_occurrences
+
+
+def get_days_of_stamp_year(year = 2000):
+    dt = timedelta(days = 1)
+    d = datetime(year,1,1,0,0)
+ 
+    if calendar.isleap(year):
+        n_days = 366
+    else:
+        n_days = 365
+
+    return (d + i * dt for i in range(n_days))
+
+
+
+def calculate_occurences_for_member(nc = None, select_function = None, basin_indices = None,
+                                    start_date = datetime(1970,1,1,0,0),
+                                    end_date = datetime(1999,12,31,0,0),
+                                    dates_of_stamp_year = [],
+                                    i_indices = [], j_indices = [],
+                                    event_duration = timedelta(days = 7),
+                                    bin_interval_dt = timedelta(days = 10), times = []
+                                    ):
+
+    discharge_data = nc.variables['water_discharge'].data
+
+
+    #sum occurences over each basin
+    basin_to_data = {}
+    for cell_index, i, j in zip(range(len(i_indices)), i_indices, j_indices):
+        the_map = select_function(discharge_data[:,cell_index], times,
+                                dates_of_stamp_year = dates_of_stamp_year,
+                                duration_days = event_duration,
+                                start_date = start_date,
+                                end_date = end_date
+                                )
+        the_basin = None
+
+        for b in basin_indices:
+            if b.mask[i, j] == 1:
+                the_basin = b
+                break
+
+        if basin_to_data.has_key(the_basin):
+            data = basin_to_data[the_basin]
+            for k, v in the_map.iteritems():
+                if data.has_key(k):
+                    data[k] += v
+                else:
+                    data[k] = v
+        else:
+            basin_to_data[the_basin] = the_map
+
+
+    day_start = datetime(dates_of_stamp_year[0].year, 1, 1)
+    day_end = datetime(dates_of_stamp_year[0].year, 12, 31)
+
+    #partition the occurences between the bins of width bin_interval_dt
+    start_bin_dates = []
+    d = day_start
+    while d < day_end:
+        start_bin_dates.append(d)
+        d += bin_interval_dt
+        
+    
+
+
+    basin_to_occurences = {}
+    for b, data  in  basin_to_data.iteritems():
+        print b.name
+
+        k = 0
+        start_bin_date = start_bin_dates[k]
+        occs = [0]
+        sorted_dates = data.keys()
+        sorted_dates.sort()
+        for the_date in sorted_dates:
+            occ = data[the_date]
+            if  the_date >= start_bin_date and (the_date < start_bin_date + bin_interval_dt):
+                occs[k] += occ
+            else:
+                occs.append( occ )
+                start_bin_date += bin_interval_dt
+                k += 1
+                
+        basin_to_occurences[b] = occs
+
+    return basin_to_occurences
+
+
+def calculate_mean_occurences_and_std(member2basin_and_occ = {}):
+    '''
+        return mean occurence number and std for each day of the stamp year
+    '''
+    basin_2_mean = {}
+    basin_2_std = {}
+
+    basin_2_2d_occs = {}
+
+    for member, basin_2_occ in member2basin_and_occ.iteritems():
+        for basin, occs in basin_2_occ.iteritems():
+            if basin_2_2d_occs.has_key(basin):
+                print np.array(occs).shape
+                basin_2_2d_occs[basin].append(occs)
+            else:
+                basin_2_2d_occs[basin] = [occs]
+
+    
+    for basin, occs in basin_2_2d_occs.iteritems():
+        occs_array = np.array(occs)
+        print occs_array.shape
+        basin_2_mean[basin] = np.mean(occs_array, axis = 0)
+        basin_2_std[basin] = np.std(occs_array, axis = 0)
+ 
+    return basin_2_mean, basin_2_std
+
+
+
+def main(the_function = get_low_flow, event_duration = timedelta(days = 7),
+         prefix = '', data_folder = 'data/streamflows/VplusF_newmask1' ):
+
+    path = 'data/streamflows/VplusF_newmask1/aex_discharge_1970_01_01_00_00.nc'
+    nc = NetCDFFile(path)
+
+    i_ind = nc.variables['x-index'].data[:]
+    j_ind = nc.variables['y-index'].data[:]
+
+
+
+    current_member2basin_and_occurences = {}
+    future_member2basin_and_occurences = {}
+
+
+    basin_path = 'data/infocell/amno180x172_basins.nc'
+
+    basin_indices = read_basin_indices(basin_path)
+
+    
+
+    times_current = nc.variables['time'].data[:]
+    times_current = map(''.join, times_current)
+    times_current = map(lambda t: datetime.strptime(t, TIME_FORMAT), times_current)
+    dates_of_stamp_year_current = map(
+                        lambda t: datetime(2000, t.month, t.day,
+                                            t.hour, t.minute, t.second) , times_current)
+
+
+
+
+    current_start_date = datetime(1970, 1, 1, 0, 0)
+    current_end_date = datetime(1999, 12, 31, 0, 0)
+
+    future_start_date = datetime(2041, 1, 1, 0, 0)
+    future_end_date = datetime(2070, 12, 31, 0, 0)
+
+
+
+    filename = '%s_discharge_%s.nc' % (members.future_ids[0], future_start_date.strftime(TIME_FORMAT))
+    path = os.path.join(data_folder, filename)
+    nc = NetCDFFile(path)
+    times_future = nc.variables['time'].data[:]
+    times_future = map(''.join, times_future)
+    times_future = map(lambda t: datetime.strptime(t, TIME_FORMAT), times_future)
+    dates_of_stamp_year_future = map(
+                        lambda t: datetime(2000, t.month, t.day,
+                                            t.hour, t.minute, t.second) , times_future)
+
+    
+    for i in range(3):
+        members.current_ids.pop()
+
+    bin_interval_dt = timedelta(days = 25)
+    for current_member in members.current_ids:
+        filename = '%s_discharge_%s.nc' % (current_member, current_start_date.strftime(TIME_FORMAT))
+        path = os.path.join(data_folder, filename)
+        nc_current = NetCDFFile(path)
+        basin_to_occ_current = calculate_occurences_for_member(nc = nc_current,
+                                                               select_function = the_function,
+                                                               basin_indices = basin_indices,
+                                                               start_date = current_start_date,
+                                                               end_date = current_end_date,
+                                                               dates_of_stamp_year = dates_of_stamp_year_current,
+                                                               i_indices = i_ind, j_indices = j_ind,
+                                                               event_duration = event_duration,
+                                                               bin_interval_dt = bin_interval_dt, times = times_current)
+        current_member2basin_and_occurences[current_member] = basin_to_occ_current
+        nc_current.close()
+
+
+
+        future_member = members.current2future[current_member]
+        filename = '%s_discharge_%s.nc' % (future_member, future_start_date.strftime(TIME_FORMAT))
+        path = os.path.join(data_folder, filename)
+        
+        nc_future = NetCDFFile(path)
+        basin_to_occ_future = calculate_occurences_for_member(nc = nc_future, select_function = the_function,
+                                                               basin_indices = basin_indices,
+                                                               start_date = future_start_date,
+                                                               end_date = future_end_date,
+                                                               dates_of_stamp_year = dates_of_stamp_year_future,
+                                                               i_indices = i_ind, j_indices = j_ind,
+                                                               event_duration = event_duration,
+                                                               bin_interval_dt = bin_interval_dt, times = times_future)
+        future_member2basin_and_occurences[future_member] = basin_to_occ_future 
+        nc_future.close()
+
+
+
+
+    
+    
+
+    current_bin_dates = []
+    future_bin_dates = []
+    day_start = datetime(dates_of_stamp_year_current[0].year, 1, 1)
+    day_end = datetime(dates_of_stamp_year_current[0].year, 12, 31)
+    d = day_start
+    while d < day_end:
+        if d + bin_interval_dt < day_end:
+            current_bin_dates.append(d)
+            future_bin_dates.append(d + bin_interval_dt / 4)
+        else: #for the last iteration
+            current_bin_dates.append(d)
+            future_bin_dates.append(d + (day_end - d) / 4)
+        d += bin_interval_dt
+
+
+
+
+
+    bar_width_on_plot = mdates.date2num(day_start + bin_interval_dt) - mdates.date2num(day_start)
+    bar_width_on_plot /= 4.0 ##in order to place current and future together
+
+
+    pylab.rcParams.update(params)
+    plt.subplots_adjust(hspace = 0.5)
+    i = 1
+
+    print 'Calculating mean and standard deviations ...'
+    current_basin2mean, current_basin2std = calculate_mean_occurences_and_std(current_member2basin_and_occurences)
+    future_basin2mean, future_basin2std = calculate_mean_occurences_and_std(future_member2basin_and_occurences)
+
+    print 'Starting to plot'
+    for basin, mean_current in current_basin2mean.iteritems():
+        print basin.name, basin.get_number_of_cells()
+        ax = plt.subplot(7,3,i)
+
+
+        n_years = (future_end_date - future_start_date).days / 365
+
+
+        n_cells_and_years = float(basin.get_number_of_cells() * n_years)
+
+        mean_current /= n_cells_and_years
+        std_current = current_basin2std[basin] / n_cells_and_years
+
+        mean_future = future_basin2mean[basin] / n_cells_and_years
+        std_future = future_basin2std[basin] / n_cells_and_years
+
+
+ #       plt.hist(occs, bins, rwidth = 0.8, histtype='bar')
+        plt.bar(current_bin_dates, mean_current , width = bar_width_on_plot, linewidth = 0.0,
+                                         label = 'current climate', yerr = std_current)
+        plt.bar(future_bin_dates, mean_future ,width = bar_width_on_plot, linewidth = 0.0,
+                                         label = 'future climate', yerr = std_future, color = 'r')
+        plt.xlim(day_start, day_end)
+        #plt.yticks([0, 185, 370])
+        plt.title(basin.name, {'fontsize': title_font_size})
+
+        plt.yticks([0, 0.5,1])
+        #ax = plt.gca()
+        ax.xaxis.set_major_locator(
+            mpl.dates.MonthLocator()
+        )
+        ax.xaxis.set_major_formatter(
+            mpl.dates.DateFormatter('%m')
+        )
+#        plt.savefig(
+#            '%s_basins/%s_%d_days_%s.png' % ( prefix, prefix, duration_days , b.name))
+        i += 1
+
+#    plt.figlegend([b_current[0],b_future[0]],['Current climate', 'Future climate'], 'upper right')
+    plt.savefig('%s_%d_panel.png' % (prefix, event_duration.days),  bbox_inches='tight')
+    pass
+
+
+
+if __name__ == "__main__":
+    main(get_low_flow, event_duration = timedelta(days = 7), prefix = 'low')
+    #main(get_high_flow, event_duration = timedelta(days = 1), prefix = 'high')
+    print "Hello World"
