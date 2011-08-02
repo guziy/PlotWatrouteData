@@ -36,6 +36,11 @@ pylab.rcParams.update(params)
 colors = {2:'green', 5:'red', 10:'m', 30:'k'}
 markers = {2: '>', 5:'+', 10:'d', 30:'x' }
 
+
+import application_properties
+application_properties.set_current_directory()
+
+
 #delete non-continuous parts of series
 def delete_not_continuous(data):
 
@@ -76,6 +81,11 @@ def delete_not_continuous(data):
                 station.delete_data_for_year(year)
                 data_point.delete_data_for_year(year)
 
+        if data_point.get_timeseries_length() == 0:
+            continue
+
+        if station.get_timeseries_length() == 0:
+            continue
         print station.dates[0], data_point.get_sorted_dates()[0]
         print station.dates[-1], data_point.get_sorted_dates()[-1]
         print len(station.dates), len(data_point.get_sorted_dates())
@@ -163,7 +173,7 @@ def plot_dates_scatter(model_high_dates, station_high_dates, model_low_dates, st
 
 
 def main():
-    data = get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler12/aex_discharge_1970_01_01_00_00.nc')
+    data = get_station_and_corresponding_model_data(path = 'data/streamflows/output_2d/data1/aex_discharge_1961_01_01_00_00.nc')
     delete_not_continuous(data)
 
 
@@ -195,6 +205,13 @@ def main():
 
 
     for station, model_point in data.iteritems():
+        # @type model_point ModelPoint
+        if model_point.get_timeseries_length() == 0:
+            continue
+
+        # @type station Station
+        if station.get_timeseries_length() == 0:
+            continue
         
         high_values_station = data_select.get_period_maxima(station.values, station.dates,
                                       start_date = None, end_date = None,
@@ -276,6 +293,17 @@ def main():
 
 
     for station, model_point in data.iteritems():
+
+        print "retained timeseries lenght of the station %s is %d " % (station.id, station.get_timeseries_length())
+
+        # @type model_point ModelPoint
+        if model_point.get_timeseries_length() == 0:
+            continue
+
+        # @type station Station
+        if station.get_timeseries_length() == 0:
+            continue
+
 
         print 'station min: %f, max: %f' % (np.min(station.values), np.max(station.values))
         print 'model min: %f, max: %f' % (

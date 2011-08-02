@@ -39,9 +39,9 @@ ys = polar_stereographic.ys
 
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5.0) - 1.0) / 2.0       # Aesthetic ratio
-fig_width = 1000 * inches_per_pt          # width in inches
+fig_width = 1500 * inches_per_pt          # width in inches
 fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, 2.0 * fig_height]
+fig_size = [fig_width, fig_height]
 
 params = {
         'axes.labelsize': 20,
@@ -230,12 +230,12 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
         result = pickle.load(open(saved_selected_stations_file))
     else:
         data, times, i_list, j_list = get_data_from_file(path)
-        drainage_area = get_from_file(path, 'drainage')
-
-
-        da_2d = np.zeros(lons.shape)
-        for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-            da_2d[i, j] = drainage_area[index]
+        drainage_area = get_from_file(path, 'accumulation_area')
+        da_2d = drainage_area
+#
+#        da_2d = np.zeros(lons.shape)
+#        for index, i, j in zip( range(len(i_list)) , i_list, j_list):
+#            da_2d[i, j] = drainage_area[index]
 
 
 
@@ -278,9 +278,11 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
 def main():
 
     pylab.rcParams.update(params)
-    path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
+    path = 'data/streamflows/output_2d/data1/aex_discharge_1961_01_01_00_00.nc'
+    #path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
     data, times, i_list, j_list = get_data_from_file(path)
-    drainage_area = get_from_file(path, 'drainage')
+
+    da_2d = get_from_file(path, 'accumulation_area')
 
     data_step = timedelta(days = 1)
 
@@ -297,9 +299,9 @@ def main():
     reload(sys)
     sys.setdefaultencoding('iso-8859-1')
 
-    da_2d = np.zeros(lons.shape)
-    for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-        da_2d[i, j] = drainage_area[index]
+#    da_2d = np.zeros((lons.shape))
+#    for index, i, j in zip( range(len(i_list)) , i_list, j_list):
+#        da_2d[i, j] = drainage_area[index]
        
 
     selected_stations = []
@@ -317,12 +319,13 @@ def main():
     label1 = 'model'
     label2 = 'observation'
     override = {'fontsize': 20}
-    plt.subplots_adjust(hspace = 0.5, wspace = 0.4, top = 0.9)
+    plt.subplots_adjust(hspace = 1.5, wspace = 0.4, top = 0.9)
     
 
     for index, i, j in zip( range(len(i_list)) , i_list, j_list):
         station = get_closest_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
-        
+
+
         if station == None or station in selected_stations:
             continue
 
@@ -344,14 +347,9 @@ def main():
         if end_date < start_date:
             continue
 
-        plt.subplot(6, 2, current_subplot)
-        current_subplot += 1
 
 
-        grid_drainages.append(da_2d[i, j])
-        grid_lons.append(lons[i, j])
-        grid_lats.append(lats[i, j])
-
+ 
 
         #select data for years that do not have gaps
         start_year = start_date.year
@@ -370,12 +368,16 @@ def main():
                     continuous_station_data[d] = v
 
                 #save model data
-                for i, t in enumerate(times):
+                for t_index, t in enumerate(times):
                     if t.year > year: break
                     if t.year < year: continue
-                    continuous_model_data[t] = data[i, index]
+                    continuous_model_data[t] = data[t_index, index]
 
         print 'Number of continuous years for station %s is %d ' % (station.id, num_of_continuous_years)
+
+        #skip stations with less than 20 years of usable data
+        #if num_of_continuous_years < 2:
+        #    continue
 
 
 
@@ -386,8 +388,8 @@ def main():
         stamp_dates = []
         mean_data_model = []
         mean_data_station = []
-        for i in xrange(365):
-            the_day = start_day + i * data_step
+        for day_number in xrange(365):
+            the_day = start_day + day_number * data_step
             stamp_dates.append(the_day)
 
             model_data_for_day = []
@@ -406,6 +408,8 @@ def main():
 
 
 
+        plt.subplot(10, 3, current_subplot)
+        current_subplot += 1
 
 
         line1, = plt.plot(stamp_dates, mean_data_model, linewidth = 3)
@@ -429,7 +433,10 @@ def main():
 
         plt.yticks([0, half , upper])
 
-        
+        grid_drainages.append(da_2d[i, j])
+        grid_lons.append(lons[i, j])
+        grid_lats.append(lats[i, j])
+
         selected_station_values.append(mean_data_station)
         selected_model_values.append(mean_data_model)
         selected_stations.append(station)
@@ -546,11 +553,5 @@ def plot_drainage_scatter(stations, grid_drainage):
 
 
 if __name__ == "__main__":
-    data = get_station_and_corresponding_model_data()
-    print len(data)
-    for station in data.keys():
-        print len(station.dates)
-
-
     main()
     print "Hello World"

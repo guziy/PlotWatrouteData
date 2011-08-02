@@ -24,8 +24,8 @@ def get_data_from_file(path, field_name = 'water_discharge'):
     #dims: time, cell_index
     discharge = fpin.variables[field_name][:,:]
     print discharge.shape
-    x_indices = fpin.variables['x-index'][:]
-    y_indices = fpin.variables['y-index'][:]
+    x_indices = fpin.variables['x_index'][:]
+    y_indices = fpin.variables['y_index'][:]
     
     date_times = []
     for t in times:

@@ -15,8 +15,14 @@ class MapParameters():
     def get_longitudes_and_latitudes(self, nx = 180, ny = 172, lat_center = 49.65698, lon_center = -96.99443, dx = 45000):
         xc, yc = latlon2psxy(lat_center, lon_center)
 
+
+        print 'Coordinates of the grid center ', xc * 45000, yc * 45000
+        
+
         xmin = xc - (nx - 1) / 2.0
         ymin = yc - (ny - 1) / 2.0
+
+        print xc - xmin, yc - ymin
 
         print 'These coordinates can be verified with cccma site points (2,2) and (181, 173) respectively'
         print 'lower left: ', psxy2latlon(xmin, ymin)
@@ -59,5 +65,10 @@ def zoom_on_quebec(plt):
 
 polar_stereographic = MapParameters()
 
+def test():
+    polar_stereographic = MapParameters()
+    polar_stereographic.get_longitudes_and_latitudes()
+
 if __name__ == "__main__":
+    test()
     print "Hello World"

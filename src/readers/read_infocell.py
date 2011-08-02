@@ -27,7 +27,8 @@ from matplotlib.lines import Line2D
 
 from plot2D.calculate_mean_map import *
 
-
+from data.cell import Cell
+from data.basin import Basin
 
 
 
@@ -133,276 +134,10 @@ def get_indices_of_next_cell_esri(value, i, j):
     return inext, jnext
 
 
-class Cell():
-    '''
-    Class representing a grid cell
-    '''
-    def __init__(self, id = None):
-        self.id = id
-        self.next = None
-        self.previous = []
-        self.area = -1
-        self.clay = -1
-        self.sand = -1
-        self.number_of_upstream_cells = -1  #number of cells that flow into this cell
-        self.drainage = -1 #number of cells that flow into this cell
-        self.drainage_area = -1 #drainage area in km**2
-        self.ibn = 3
-        self.chslp = -1
-        self.x = -1
-        self.y = -1
-        self.basin = None
-        self.is_end_cell = False
-        self.direction_value = -1
-        self.basins = []
-        self.topo = None
-        #rid  - is the indication river or lake, 0 - river
-        self.rid = 0
-        self.rout = 0
-        self.channel_length = -1
-
-
-    def set_next(self, next_cell):
-        if self.next != None and self in self.next.previous:
-            self.next.previous.remove(self)
-
-        self.next = next_cell
-        if next_cell != None:
-            next_cell.add_previous(self)
-
-        #sanity checks
-        if self.next != None:
-            assert self in self.next.previous
-            self.next.basin != None
-        assert self not in self.previous
-
-
-
-    def coords(self):
-        return self.x, self.y
-
-
-    def get_cells_upflow(self, basin):
-        result = []
-        for prev in self.previous:
-            if prev in basin.cells:
-                result.extend(prev.get_cells_upflow(basin))
-                result.append(prev)
-        return result
-
-    def set_coords(self, i, j):
-        self.x = i
-        self.y = j
-
-    def add_previous(self, prev):
-        if prev not in self.previous:
-            self.previous.append(prev)
-        assert(len(self.previous) <= 8)
-        assert(prev != self)
-
-    def is_connected_to(self, other_cell):
-        '''
-        returns True if the cell is connected to  the other cell, False otherwize
-        '''
-        current = self
-        i = 0
-        path = []
-        while current != None:
-
-            if other_cell in path:
-                print 'Here'
-                return True
-
-            #closed loop
-            if current in path:
-                return False
-            path.append(current)
-
-            
-            if current == other_cell:
-                return True
-
-
-            if current.basin != other_cell.basin or current.basin == None:
-                return False
-
-            if current.next != None:
-                if current.basin != current.next.basin:
-                    return False
-
-            current = current.next
-
-            i += 1
-            assert i < 10000
-        return False
-
-
-    def calculate_drainage_area(self):
-        '''
-        calculate drainage area for the cell
-        '''
-        if self.drainage_area >= 0:
-            return
-
-        self.drainage_area = self.area
-        for prev in self.previous:
-            if prev.basin == None:
-                continue
-            prev.calculate_drainage_area()
-            self.drainage_area += prev.drainage_area
-#            self.drainage_area += prev.area
-
-    def calculate_number_of_upstream_cells(self):
-        '''
-        returns the number of upstream cells which
-        flow into the current cell
-        '''
-        if self.number_of_upstream_cells >= 0:
-            return self.number_of_upstream_cells
-        else:
-            result = 0
-            for the_previous in self.previous:
-                result += the_previous.calculate_number_of_upstream_cells()
-            result += len(self.previous)
-        return result
-        pass
 
 
 
 
-
-
-class Basin():
-    '''
-    Class representing a basin
-    '''
-    def __init__(self, id = -1, name = "unknown"):
-        self.id = id
-        self.name = name
-        self.cells = []
-        self.exit_cells = []
-        self.description = ''
-
-    def add_cell(self, the_cell):
-        self.cells.append(the_cell)
-        the_cell.basins.append(self)
-        the_cell.basin = self
- 
-
-    def _drainage_for_cell(self, the_cell):
-        if the_cell.drainage >= 0:
-            return
-        drainage = 0
-        for prev in the_cell.previous:
-            if prev not in self.cells:
-                continue
-            self._drainage_for_cell(prev)
-            drainage += prev.drainage + 1
-        the_cell.drainage = drainage
-        
-
-    def _calculate_internal_drainage(self):
-        #initialize drainages
-        for the_cell in self.cells:
-            the_cell.drainage = -1
-        for the_cell in self.cells:
-            self._drainage_for_cell(the_cell)
-        pass
-
-
-    def _try_to_determine_exits(self):
-        self._calculate_internal_drainage()
-        drainage = -1
-        result_cell = None
-        for the_cell in self.cells:
-            if drainage < the_cell.drainage and the_cell.next not in self.cells:
-                result_cell = the_cell
-                drainage = the_cell.drainage
-        result_cell.next = None
-        self.exit_cells.append(result_cell)
-
-    def set_exit_cells(self, i_list = None, j_list = None):
-        '''
-        Sets exit cells for the basin using cell indices
-        '''
-        if i_list == None or j_list == None:
-            self._try_to_determine_exits()
-        else:
-            for i, j in zip(i_list,  j_list):
-                print i, j
-                assert cells[i][j] in self.cells, "outlet not in mask of the basin %s" % self.name
-
-                self.exit_cells.append(cells[i][j])
-                cells[i][j].basin = self
-
-                #if the outflow points to the cell that does not belong to any basin
-                if cells[i][j].next != None and cells[i][j].next.basin == None:
-                    cells[i][j].set_next( None )
-
-                #if the outflow points to the cell in the same basin
-                if cells[i][j].next != None and cells[i][j].next.basin == cells[i][j].basin:
-                    cells[i][j].set_next(None)
-
-
-
- 
-
-    def get_max_i(self):
-        '''
-            returns maximum horizontal cell index in the basin
-        '''
-        i_max = -1
-        for the_cell in self.cells:
-            if i_max < the_cell.x:
-                i_max = the_cell.x
-        return i_max
-
-
-    def get_min_i(self):
-        '''
-            returns minimum horizontal cell index in the basin
-        '''
-        i_min = -1
-        for the_cell in self.cells:
-            if i_min == -1:
-                i_min = the_cell.x
-
-            if i_min > the_cell.x:
-                i_min = the_cell.x
-        return i_min
-
-
-    def get_max_j(self):
-        '''
-            returns maximum vertical cell index in the basin
-        '''
-        j_max = -1
-        for the_cell in self.cells:
-            if j_max < the_cell.y:
-                j_max = the_cell.y
-        return j_max
-
-    def get_min_j(self):
-        '''
-            returns minimum vertical cell index in the basin
-        '''
-        j_min = -1
-        for the_cell in self.cells:
-            if j_min == -1:
-                j_min = the_cell.y
-
-            if j_min > the_cell.y:
-                j_min = the_cell.y
-        return j_min
-
-
-    def get_approxim_middle_indices(self):
-        _i_list = []
-        _j_list = []
-        for cell in self.cells:
-            _i_list.append(cell.x)
-            _j_list.append(cell.y)
-        return np.mean(_i_list), np.mean(_j_list)
 
 
 ###Create data structures
@@ -1458,22 +1193,26 @@ def get_basins_with_cells_connected_using_hydrosheds_data():
 
 def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
     ncFile = NetCDFFile(path)
-    read_cell_area()
+   # read_cell_area()
 
 
-    inext_var = ncFile.variables['flow_direction_index0'].data
-    jnext_var = ncFile.variables['flow_direction_index1'].data
+    inext_var = ncFile.variables['flow_direction_index0'].data[:,:]
+    jnext_var = ncFile.variables['flow_direction_index1'].data[:,:]
 
-    lons = ncFile.variables['longitude'].data
-    lats = ncFile.variables['latitude'].data
+    lons = ncFile.variables['lon'].data[:,:]
+    lats = ncFile.variables['lat'].data[:,:]
 
     lons = np.array(lons)
 
-    lons[lons >= 180] -= 360
-
+    
+    plt.figure()
     print np.min(lons), np.max(lons)
 
-    basemap = Basemap(resolution = 'i')
+    basemap = Basemap(resolution = 'i', llcrnrlon = np.min(lons),
+                                        llcrnrlat = np.min(lats),
+                                        urcrnrlon = np.max(lons),
+                                        urcrnrlat = np.max(lats)
+                                        )
 
     
     
@@ -1481,31 +1220,31 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
 
 
 
-
+    print lons.shape
     nx, ny = lons.shape
     u = np.ma.masked_all(lons.shape)
     v = np.ma.masked_all(lons.shape)
 
-    local_cells = []
     for i in xrange(nx):
-        local_cells.append([])
         for j in xrange(ny):
-            if inext_var[i, j] >= 0:
-                i1 = inext_var[i, j]
-                j1 = jnext_var[i, j]
+            i1, j1 = inext_var[i, j], jnext_var[i, j]
+            if i1 >= 0 and i1 < nx and j1 >= 0 and j1 < ny:
                 u[i,j] = lons[i1,j1] - lons[i,j]
                 v[i,j] = lats[i1,j1] - lats[i,j]
+#                plt.annotate(str((i,j)), xy = (lons[i,j], lats[i,j]))
 
     print np.ma.min(u), np.ma.max(u)
-    basemap.quiver(lons, lats, u, v, scale = 1, width = 0.006 , units='inches')
+    basemap.quiver(lons, lats, u, v, width = 0.06 , units='xy', pivot = 'tail')
+
+
     basemap.drawcoastlines()
 
-    ymin, ymax = plt.ylim()
-    xmin, xmax = plt.xlim()
+#    ymin, ymax = plt.ylim()
+#    xmin, xmax = plt.xlim()
+#
+#    plt.xlim(xmin * 0.5, xmin * 0.25)
+#    plt.ylim(ymax * 0.4, ymax * 0.9)
     
-    plt.xlim(xmin * 0.5, xmin * 0.25)
-    plt.ylim(ymax * 0.4, ymax * 0.9)
-    plt.show()
     pass
 
 
@@ -1514,7 +1253,7 @@ def read_derived_from_hydrosheds():
 
    # get_cells_from_infocell('data/infocell/HQ2_infocell.txt')
 
-    path = 'data/hydrosheds/directions.nc'
+    path = 'data/hydrosheds/directions_qc_amno.nc'
     ncFile = NetCDFFile(path)
     read_cell_area()
 
@@ -1707,5 +1446,7 @@ if __name__ == "__main__":
 #    test()
 #    main()
 #    read_derived_from_hydrosheds()
-    plot_directions_from_file()
+    plot_directions_from_file(path = 'data/hydrosheds/directions_qc_amno.nc')
+#    plot_directions_from_file(path = 'data/hydrosheds/directions0.nc')
+    plt.show()
     print 'Execution time %f seconds' % (time.clock() - t0)

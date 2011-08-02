@@ -5,7 +5,7 @@ __date__ ="$22 oct. 2010 12:00:55$"
 
 
 from mpl_toolkits.basemap import NetCDFFile
-import data_select
+import data.data_select as data_select
 from math import isnan
 from math import isinf
 from plot_utils import draw_meridians_and_parallels
