@@ -2,30 +2,30 @@
 __author__="huziy"
 __date__ ="$8 dec. 2010 10:20:08$"
 
-from data.datapoint import DataPoint
+from data.modelpoint import ModelPoint
 from data.cehq_station import Station
 import os.path
-from mpl_toolkits.basemap import NetCDFFile
-from data.data_select import get_data_from_file
+
 import application_properties
-from readers.read_infocell import plot_basin_boundaries_from_shape
+#from readers.read_infocell import plot_basin_boundaries_from_shape
 import os
 import sys
-from math import *
+from math import sqrt
 import numpy as np
 import pickle
 
-from data.cehq_station import Station
+
 from util.geo.lat_lon import get_distance_in_meters
 from plot2D.map_parameters import polar_stereographic
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import pylab
-from gevfit.gevfit import zoom_to_qc
 import matplotlib as mpl
 
+from data import data_select
+from plot2D import plot_utils
 
-application_properties.set_current_directory()
+
 
 MAXIMUM_DISTANCE_METERS = 45000.0 #m
 
@@ -114,14 +114,6 @@ def read_station_data(folder = 'data/cehq_measure_data'):
         stations.append(s)
     return stations
 
-
-
-
-def get_from_file(path, varname):
-    nc = NetCDFFile(path)
-    data = nc.variables[varname].data
-    nc.close()
-    return data
 
 
 def average_for_each_day_of_year(times, data, start_date = None, end_date = None, year = 2000):
@@ -229,13 +221,17 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
     if os.path.isfile(saved_selected_stations_file):
         result = pickle.load(open(saved_selected_stations_file))
     else:
-        data, times, i_list, j_list = get_data_from_file(path)
-        drainage_area = get_from_file(path, 'accumulation_area')
-        da_2d = drainage_area
-#
-#        da_2d = np.zeros(lons.shape)
-#        for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-#            da_2d[i, j] = drainage_area[index]
+        print 'getting data from file ', path
+        data, times, i_list, j_list = data_select.get_data_from_file(path)
+        drainage_area = data_select.get_field_from_file(path, field_name = 'drainage')
+
+
+        #da_2d = drainage_area
+
+        da_2d = np.zeros(lons.shape)
+        for index, i, j in zip( range(len(i_list)) , i_list, j_list):
+            da_2d[i, j] = drainage_area[index]
+
 
 
 
@@ -256,7 +252,7 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
             if station == None or station in selected_stations:
                 continue
             selected_stations.append(station)
-            data_point = DataPoint(times, data[:, index])
+            data_point = ModelPoint(times, data[:, index])
             result[station] = data_point
 
             print '=' * 20
@@ -271,6 +267,7 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
 #        plt.plot(station.dates, station.values, label = station.name)
 #    plt.legend()
 #    plt.show()
+    assert len(result) > 0
     return result
 
 
@@ -278,11 +275,12 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
 def main():
 
     pylab.rcParams.update(params)
-    path = 'data/streamflows/output_2d/data1/aex_discharge_1961_01_01_00_00.nc'
-    #path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
-    data, times, i_list, j_list = get_data_from_file(path)
+    #path = 'data/streamflows/output_2d/data1/aex_discharge_1961_01_01_00_00.nc'
+    path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
 
-    da_2d = get_from_file(path, 'accumulation_area')
+    data, times, i_list, j_list = data_select.get_data_from_file(path)
+
+    da_2d = data_select.get_from_file(path, 'accumulation_area')
 
     data_step = timedelta(days = 1)
 
@@ -507,7 +505,7 @@ def plot_selected_stations(selected_stations):
                      )
         basemap.scatter(x,y, c = 'r', s = 100, marker='^', linewidth = 0, alpha = 1)
 
-    zoom_to_qc()
+    plot_utils.zoom_to_qc(plt)
 
     plt.savefig('selected_stations.png',  bbox_inches='tight')
 
@@ -553,5 +551,8 @@ def plot_drainage_scatter(stations, grid_drainage):
 
 
 if __name__ == "__main__":
-    main()
+    application_properties.set_current_directory()
+    print os.getcwd()
+    get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc')
+    #main()
     print "Hello World"

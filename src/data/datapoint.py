@@ -13,7 +13,7 @@ class DataPoint():
         if dates == None or values == None:
             self.timeseries = {}
         else:
-            self.timeseries = dict(itertools.izip(dates, values))
+            self.timeseries = dict(zip(dates, values))
         self.sorted_dates = None
 
     def remove_record_for_date(self, the_date):

@@ -6,10 +6,10 @@ from data.datapoint import DataPoint
 
 class ModelPoint(DataPoint):
     '''
-    Represents one station data timeseries
+    Represents one point data timeseries
     '''
-    def __init__(self, ix = None, iy = None, id = None):
-        DataPoint.__init__(self)
+    def __init__(self, dates = None, values = None, ix = None, iy = None, id = None):
+        DataPoint.__init__(self,dates, values)
         self.ix = ix
         self.iy = iy
         self._longitude = None
@@ -27,6 +27,11 @@ class ModelPoint(DataPoint):
 
     def get_latitude(self):
         return self._latitude
+
+
+    def clear_timeseries(self):
+        self.timeseries = {}
+        self.sorted_dates = []
 
 
 

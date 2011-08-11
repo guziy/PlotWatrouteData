@@ -9,7 +9,7 @@ import numpy as np
 
 
 import application_properties
-application_properties.set_current_directory()
+
 
 
 class Station:
@@ -31,6 +31,11 @@ class Station:
             self.date_to_value = dict(zip(self.dates, self.values))
         return self.date_to_value[the_date]
 
+    def remove_all_observations(self):
+        self.dates = []
+        self.values = []
+        self.date_to_value = {}
+        pass
 
 
     def delete_data_for_year(self, year):
@@ -47,6 +52,7 @@ class Station:
             self.values.remove(v)
             if self.date_to_value.has_key(d):
                 del self.date_to_value[d]
+        assert len(self.dates) == len(self.date_to_value)
 
 
     def delete_data_before_year(self, year):
@@ -122,6 +128,7 @@ class Station:
             del self.values[i]
 
     def get_timeseries_length(self):
+        assert len(self.dates) == len( self.date_to_value ), 'list_len, dict_len = {0},{1}'.format(len(self.dates), len( self.date_to_value ))
         return len(self.dates)
 
     def parse_from_cehq(self, path):
@@ -169,6 +176,7 @@ class Station:
 
         self.dates = map( lambda t : datetime.strptime(t, '%Y/%m/%d'), dates)
         self.values = map( float, values )
+        self.date_to_value = dict(zip(self.dates, self.values))
 
 
 
@@ -201,6 +209,7 @@ class Station:
 
 
 if __name__ == "__main__":
+    application_properties.set_current_directory()
     s = Station()
     s.parse_from_cehq('data/cehq_measure_data/051004_Q.txt')
 

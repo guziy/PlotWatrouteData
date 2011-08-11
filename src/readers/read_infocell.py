@@ -13,7 +13,8 @@ from util.convert import *
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
-from mpl_toolkits.basemap import NetCDFFile
+#from mpl_toolkits.basemap import NetCDFFile
+from netCDF4 import Dataset
 from math import *
 import pylab
 from util.geo.ps_and_latlon import *
@@ -192,19 +193,21 @@ def get_additional_cells(path, start_col = 90, start_row = 143):
 
 
 def read_clay(file = 'data/infocell/amno_180x172_clay.nc'):
-    f = NetCDFFile(file)
-    data = f.variables['cell_clay']
+    f = Dataset(file)
+    data = f.variables['cell_clay'][:]
     for i in range(n_cols):
         for j in range(n_rows):
             cells[i][j].clay = data[i, j]
+    f.close()
     pass
 
 def read_sand(file = 'data/infocell/amno_180x172_sand.nc'):
-    f = NetCDFFile(file)
-    data = f.variables['cell_sand']
+    f = Dataset(file)
+    data = f.variables['cell_sand'][:]
     for i in range(n_cols):
         for j in range(n_rows):
             cells[i][j].sand = data[i, j]
+    f.close()
     pass
 
 def get_cells_from_infocell(path):
@@ -279,8 +282,8 @@ def read_elevations(path = 'data/infocell/amno_180x172_topo.nc'):
     '''
     Read elevations for amno grid for amno grid 180x172
     '''
-    ncfile = NetCDFFile(path)
-    data = ncfile.variables['topography'].data
+    ncfile = Dataset(path)
+    data = ncfile.variables['topography'][:]
 
     for i in range(n_cols):
         for j in range(n_rows):
@@ -291,17 +294,18 @@ def read_elevations(path = 'data/infocell/amno_180x172_topo.nc'):
                 min_elev = min(min_elev, data[i, j])
                 max_elev = max(max_elev, data[i, j])
             cells[i][j].topo = data[i, j]
-    
+    ncfile.close()
     print 'Elevations from %f (m) to %f (m)' % ( min_elev, max_elev )
 
 
 
 def read_cell_area(path = 'data/infocell/amno_180x172_area.nc'):
-    ncfile = NetCDFFile(path)
-    data = ncfile.variables['cell_area'].data
+    ncfile = Dataset(path)
+    data = ncfile.variables['cell_area'][:]
     for i in range(n_cols):
         for j in range(n_rows):
             cells[i][j].area = data[i, j]
+    ncfile.close()
     pass
 
 
@@ -597,7 +601,7 @@ def get_cell_lats_lons(path):
 
 
 def plot_basins_separately(path, cells):
-    ncfile = NetCDFFile(path)
+    ncfile = Dataset(path)
     bas_names = ncfile.variables.keys()
     vars = ncfile.variables
 
@@ -615,7 +619,7 @@ def plot_basins_separately(path, cells):
         u_plot[:,:] = None
         v_plot[:,:] = None
 
-        the_mask = np.transpose(vars[name].data)
+        the_mask = np.transpose(vars[name][:])
         for i in range(n_cols):
             for j in range(n_rows):
                 if the_mask[i, j] == 1:
@@ -642,6 +646,7 @@ def plot_basins_separately(path, cells):
 
         plt.savefig('basins_images/' + name + '.png')
         print name
+    ncfile.close()
 
 
 
@@ -728,10 +733,10 @@ def paint_all_points_with_directions(cells):
     to_plot = np.zeros((n_cols, n_rows))
     to_plot[:,:] = None
 
-    ncfile = NetCDFFile('data/infocell/quebec_masks_amno180x172.nc')
+    ncfile = Dataset('data/infocell/quebec_masks_amno180x172.nc')
     vars = ncfile.variables
 
-    the_data = np.transpose( vars['RDO'].data )
+    the_data = np.transpose( vars['RDO'][:] )
 
 
     for i in range(n_cols):
@@ -749,6 +754,7 @@ def paint_all_points_with_directions(cells):
 
     xmin, xmax = plt.xlim()
     plt.xlim(xmin + (xmax - xmin) * 0.5, 0.95*xmax)
+    ncfile.close()
 
 
 
@@ -843,7 +849,7 @@ def read_basins(path = 'data/infocell/amno180x172_basins.nc'):
     '''
 
     descr_map = get_basin_descriptions()
-    ncfile = NetCDFFile(path)
+    ncfile = Dataset(path)
     id = 1
 
 
@@ -866,7 +872,7 @@ def read_basins(path = 'data/infocell/amno180x172_basins.nc'):
  
         id += 1
 
-    
+    ncfile.close()
     pass
 
 
@@ -1140,16 +1146,16 @@ def get_ddm_from_trip():
 ##
 def get_basins_with_cells_connected_using_hydrosheds_data():
     path = 'data/hydrosheds/directions.nc'
-    ncFile = NetCDFFile(path)
+    ncFile = Dataset(path)
     read_cell_area()
 
 
-    inext_var = ncFile.variables['flow_direction_index0'].data
-    jnext_var = ncFile.variables['flow_direction_index1'].data
+    inext_var = ncFile.variables['flow_direction_index0'][:]
+    jnext_var = ncFile.variables['flow_direction_index1'][:]
 
 
-    slopes = ncFile.variables['slope'].data
-    channel_length = ncFile.variables['channel_length'].data
+    slopes = ncFile.variables['slope'][:]
+    channel_length = ncFile.variables['channel_length'][:]
 
     min_slope = 1.0e-4
 
@@ -1186,21 +1192,22 @@ def get_basins_with_cells_connected_using_hydrosheds_data():
 
     read_clay()
     read_sand()
+    ncFile.close()
     return basins
 
 
 
 
 def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
-    ncFile = NetCDFFile(path)
+    ncFile = Dataset(path)
    # read_cell_area()
 
 
-    inext_var = ncFile.variables['flow_direction_index0'].data[:,:]
-    jnext_var = ncFile.variables['flow_direction_index1'].data[:,:]
+    inext_var = ncFile.variables['flow_direction_index0'][:]
+    jnext_var = ncFile.variables['flow_direction_index1'][:]
 
-    lons = ncFile.variables['lon'].data[:,:]
-    lats = ncFile.variables['lat'].data[:,:]
+    lons = ncFile.variables['lon'][:]
+    lats = ncFile.variables['lat'][:]
 
     lons = np.array(lons)
 
@@ -1244,7 +1251,7 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
 #
 #    plt.xlim(xmin * 0.5, xmin * 0.25)
 #    plt.ylim(ymax * 0.4, ymax * 0.9)
-    
+    ncFile.close()
     pass
 
 
@@ -1254,16 +1261,16 @@ def read_derived_from_hydrosheds():
    # get_cells_from_infocell('data/infocell/HQ2_infocell.txt')
 
     path = 'data/hydrosheds/directions_qc_amno.nc'
-    ncFile = NetCDFFile(path)
+    ncFile = Dataset(path)
     read_cell_area()
 
 
-    inext_var = ncFile.variables['flow_direction_index0'].data
-    jnext_var = ncFile.variables['flow_direction_index1'].data
+    inext_var = ncFile.variables['flow_direction_index0'][:]
+    jnext_var = ncFile.variables['flow_direction_index1'][:]
     
 
-    slopes = ncFile.variables['slope'].data
-    channel_length = ncFile.variables['channel_length'].data
+    slopes = ncFile.variables['slope'][:]
+    channel_length = ncFile.variables['channel_length'][:]
     
 
     min_slope = 1.0e-4
@@ -1302,6 +1309,7 @@ def read_derived_from_hydrosheds():
     read_sand()
 
     write_new_infocell()
+    ncFile.close()
 
    
   

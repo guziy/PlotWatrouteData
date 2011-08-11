@@ -4,10 +4,8 @@ __author__="huziy"
 __date__ ="$22 oct. 2010 12:00:55$"
 
 
-from mpl_toolkits.basemap import NetCDFFile
-import data.data_select as data_select
-from math import isnan
-from math import isinf
+#from mpl_toolkits.basemap import NetCDFFile
+from data import data_select
 from plot_utils import draw_meridians_and_parallels
 
 import application_properties
@@ -34,6 +32,16 @@ from datetime import timedelta
 
 import members
 import pylab
+
+import lmoments
+from plot2D.map_parameters import polar_stereographic
+import pickle
+
+from plot2D import plot_utils
+
+
+
+
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5.0) - 1.0) / 2.0       # Aesthetic ratio
 fig_width = 2000 * inches_per_pt          # width in inches
@@ -42,12 +50,6 @@ fig_size = [fig_width, fig_height]
 
 font_size = 25
 
-def zoom_to_qc():
-    ymin, ymax = plt.ylim()
-    plt.ylim(ymin + 0.05 * (ymax - ymin) , ymax * 0.25)
-
-    xmin, xmax = plt.xlim()
-    plt.xlim(xmin + (xmax - xmin) * 0.55, 0.72*xmax)
 
 
 
@@ -64,14 +66,11 @@ params = {
 pylab.rcParams.update(params)
 
 
-import pickle
+
 
 #set current directory to the root directory of the project
 application_properties.set_current_directory()
 
-import lmoments
-
-from plot2D.map_parameters import polar_stereographic
 
 xs = polar_stereographic.xs
 ys = polar_stereographic.ys
@@ -482,7 +481,7 @@ def plot_low_flows(period = 10,
     int_ticker = LinearLocator(numticks = color_map.N + 1)
     plt.colorbar(ticks = int_ticker, format = '%.1f')
 
-    zoom_to_qc()
+    plot_utils.zoom_to_qc(plt)
     print 'saving %s' % imagefile
     
     plt.savefig(imagefile, bbox_inches = 'tight')
@@ -532,7 +531,7 @@ def plot_high_flows(period = 10,
 #    plot_directions(data_mask = to_plot)
     plt.colorbar( ticks = int_ticker, format = "%.1f" )
 
-    zoom_to_qc()
+    plot_utils.zoom_to_qc(plt)
 
     plt.savefig(imagefile, bbox_inches = 'tight')
 

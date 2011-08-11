@@ -2,13 +2,12 @@ __author__="huziy"
 __date__ ="$6 oct. 2010 21:06:01$"
 
 import application_properties
-from math import isnan
 import os
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import ma
 
-from mpl_toolkits.basemap import NetCDFFile
+from netCDF4 import Dataset
 from math import *
 
 from datetime import datetime
@@ -168,8 +167,10 @@ def get_indices(folder):
 
     path = os.path.join( folder, filename)
     print path
-    ncfile = NetCDFFile(path)
-    return ncfile.variables['x-index'].data, ncfile.variables['y-index'].data
+    ncfile = Dataset(path)
+    result = ncfile.variables['x-index'][:], ncfile.variables['y-index'][:]
+    ncfile.close()
+    return result
 
 
 
@@ -339,8 +340,10 @@ def plot_maximums(data_folder = 'data/streamflows/hydrosheds_euler3'):
         if f.startswith('.'):
             continue
 
-        file = NetCDFFile(os.path.join(data_folder, f))
-        streamflow = file.variables['water_discharge'].data
+        file = Dataset(os.path.join(data_folder, f))
+        streamflow = file.variables['water_discharge'][:]
+        file.close()
+
         maximum_field = np.max(streamflow, axis = 0)
         
 

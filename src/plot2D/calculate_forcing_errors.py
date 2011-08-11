@@ -17,7 +17,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from readers.read_infocell import plot_basin_boundaries_from_shape
-from data.data_select import get_data_from_file
 import application_properties
 application_properties.set_current_directory()
 

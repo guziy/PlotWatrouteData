@@ -2,47 +2,63 @@ __author__="huziy"
 __date__ ="$31.12.2010 4:42:33$"
 
 
-from mpl_toolkits.basemap import NetCDFFile
 import numpy as np
 from datetime import timedelta
 from datetime import datetime
-#import netCDF4 as nc
+import netCDF4 as nc
+from netCDF4 import chartostring
+from mpl_toolkits.basemap import NetCDFFile
 
 
 def get_field_from_file(path = '', field_name = ''):
-    fpin = NetCDFFile(path)
-    the_field = fpin.variables[field_name][:,:]
-    fpin.close()
+    ds = nc.Dataset(path)
+    print 'field name = ', field_name
+    the_field = ds.variables[field_name][:]
+    ds.close()
+
     return the_field
 
 def get_data_from_file(path, field_name = 'water_discharge'):
     date_format = '%Y_%m_%d_%H_%M'
+    print 'field name = ', field_name
+    print path
+    ds = NetCDFFile(path, 'r')
+    print ds.variables.keys()
 
-    fpin = NetCDFFile(path)
-    
-    times = fpin.variables['time'][:]
+
+    print 'drainage shape = ', ds.variables['drainage'][:].shape
+
     #dims: time, cell_index
-    discharge = fpin.variables[field_name][:,:]
+    discharge = ds.variables[field_name][:]
     print discharge.shape
-    x_indices = fpin.variables['x_index'][:]
-    y_indices = fpin.variables['y_index'][:]
-    
-    date_times = []
-    for t in times:
-        date_times.append( datetime.strptime( ''.join(t) , date_format ) )
 
-    fpin.close()
+
+    times = ds.variables['time'][:]
+    print times.shape
+    
+    times = chartostring(times)
+    print times.shape, times[-1]
+    
+    x_indices = ds.variables['x-index'][:]
+    y_indices = ds.variables['y-index'][:]
+
+    date_times = map(lambda x: datetime.strptime( x , date_format ), times)
+    ds.close()
+    print date_times[-1]
+
+
     return discharge, date_times, x_indices, y_indices
 
 
 #get i_indices and j_indices from a file
 def get_indices_from_file(path = 'data/streamflows/hydrosheds_euler8/aex_discharge_1970_01_01_00_00.nc'):
-    fpin = NetCDFFile(path)
+    fpin = nc.Dataset(path)
     vars = fpin.variables
 
     x, y = vars['x-index'][:], vars['y-index'][:]
     fpin.close()
     return x, y
+
 
 
 
@@ -413,10 +429,10 @@ def get_annual_means(streamflows, times, start_date = None, end_date = None):
 def test_select():
     import application_properties
     application_properties.set_current_directory()
-    data_file = 'data/streamflows/hydrosheds_euler8/aet_discharge_1970_01_01_00_00.nc'
+    #data_file = 'data/streamflows/hydrosheds_euler8/aet_discharge_1970_01_01_00_00.nc'
+    data_file = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
     #get streamflow data
     streamflow, times, xs, ys = get_data_from_file(data_file)
-
     
     print streamflow.shape
 
@@ -429,10 +445,10 @@ def test_select():
     print maxs
 
     #test minima selection
-    maxs = get_period_minima(streamflow[:, 10], times, start_date = datetime(1970,1,1,0,0,0),
+    mins = get_period_minima(streamflow[:, 10], times, start_date = datetime(1970,1,1,0,0,0),
                             end_date = datetime(1999,12,31,0,0,0), start_month = 3,
                             end_month = 4, event_duration = timedelta(days = 15))
-    print maxs
+    print mins
 
     #test get means
     means = get_annual_means(streamflow, times, start_date = datetime(1970,1,1,0,0,0), 

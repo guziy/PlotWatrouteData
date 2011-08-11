@@ -1,16 +1,19 @@
 __author__="huziy"
 __date__ ="$1-May-2011 2:35:39 PM$"
 
-from plot2D.calculate_performance_errors import get_station_and_corresponding_model_data
-from plot2D.calculate_performance_errors import *
-
 import matplotlib.pyplot as plt
 from datetime import timedelta
+from datetime import datetime
 
-import gevfit.gevfit as gevfit
-import data.data_select as data_select
+from gevfit import gevfit
+from data import data_select
 
+import plot2D.calculate_performance_errors as pe_calc
+import numpy as np
 
+#compares low flows and high flows
+
+from math import sqrt
 import pylab
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5.0) - 1.0) / 2.0     # Aesthetic ratio
@@ -38,20 +41,35 @@ markers = {2: '>', 5:'+', 10:'d', 30:'x' }
 
 
 import application_properties
-application_properties.set_current_directory()
+
 
 
 #delete non-continuous parts of series
 def delete_not_continuous(data):
 
 
+    stations_to_remove = []
+    model_points_to_remove = []
     for station, data_point in data.iteritems():
         #the_dates_to_retain = station.get_longest_continuous_series(data_step = timedelta(days = 1))
+
+
+        print station.get_timeseries_length(), data_point.get_timeseries_length()
+        if station.get_timeseries_length() == 0 or data_point.get_timeseries_length() == 0:
+            station.remove_all_observations()
+            data_point.clear_timeseries()
+
+            stations_to_remove.append(station)
+            model_points_to_remove.append(data_point)
+            continue
+
+
 
 
         # @type data_point ModelPoint
         start_date = max(station.dates[0], data_point.get_sorted_dates()[0])
         end_date = min(station.dates[-1], data_point.get_sorted_dates()[-1])
+
 
 
         if start_date.day > 1 or start_date.month > 1:
@@ -60,9 +78,23 @@ def delete_not_continuous(data):
         if end_date.day < 31 or end_date.month < 12:
             end_date = datetime(end_date.year - 1, 12, 31,0,0,0)
 
+
+        print start_date, end_date
+
         start_year = start_date.year
         end_year = end_date.year
 
+
+        if end_date < start_date:
+            print 'warning: start date ' + str(start_date) + ', end date ' + str(end_date)
+            print 'clearing data for the station ' + station.id  + ' and corresponding point.'
+            # @type station Station
+            station.remove_all_observations()
+            data_point.clear_timeseries()
+            stations_to_remove.append(station)
+            model_points_to_remove.append(data_point)
+
+            continue
 
         # @type station Station
         station.delete_data_before_year(start_year)
@@ -91,7 +123,9 @@ def delete_not_continuous(data):
         print len(station.dates), len(data_point.get_sorted_dates())
         assert len(station.dates) == len(data_point.get_sorted_dates())
 
-            
+    #remove from consideration the stations with 0 relevan obs series
+    for station in stations_to_remove:
+       del data[station]
 
 def get_minmax_for_plot(x_dict, y_dict):
     vals = []
@@ -128,14 +162,14 @@ def plot_scatter(x_dict, y_dict, xlabel = 'x', ylabel = 'y', title = '',
                 handles.append(h)
                 labels.append('{0}'.format(key))
             else: #extreme events
-                plt.scatter(x, y)
+                plt.scatter(x, y, color = 'k')
 
     if different_shapes_and_colors:
         plt.legend(handles, labels, 'upper center')
 
 
     z = get_minmax_for_plot(x_dict, y_dict)
-    z = [-10, z[1] * 1.1 ]
+    z = [0, z[1] * 1.1 ]
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -173,7 +207,9 @@ def plot_dates_scatter(model_high_dates, station_high_dates, model_low_dates, st
 
 
 def main():
-    data = get_station_and_corresponding_model_data(path = 'data/streamflows/output_2d/data1/aex_discharge_1961_01_01_00_00.nc')
+    path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
+    data = pe_calc.get_station_and_corresponding_model_data(path = path)
+    print len(data)
     delete_not_continuous(data)
 
 
@@ -273,6 +309,8 @@ def main():
 
     #plot scatter plot (model vs station (high))
     #return levels
+
+    print len(station_return_levels), len(model_return_levels)
     plot_scatter(station_return_levels, model_return_levels,
                 'Observed return level (${\\rm m^3/s}$)',
                 'Modelled return level (${\\rm m^3/s}$)'
@@ -424,5 +462,6 @@ def main():
 
 
 if __name__ == "__main__":
+    application_properties.set_current_directory()
     main()
     print "Hello World"

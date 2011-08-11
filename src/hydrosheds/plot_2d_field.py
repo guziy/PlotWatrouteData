@@ -4,7 +4,7 @@ __date__ ="$Apr 1, 2011 11:54:33 AM$"
 
 
 
-from mpl_toolkits.basemap import Basemap, NetCDFFile
+from mpl_toolkits.basemap import NetCDFFile
 
 import numpy as np
 
