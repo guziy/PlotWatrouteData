@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 import pylab
 import matplotlib as mpl
 
-from data import data_select
-from plot2D import plot_utils
+import data.data_select as data_select
+import plot2D.plot_utils as plot_utils
 
 
 
@@ -94,7 +94,7 @@ def get_closest_station(lon, lat, cell_drain_area_km2, station_list):
                 result = station
                 objective = objective1
         
-            
+    
     if objective <= 0.7:
         return result
     else:
@@ -222,15 +222,22 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
         result = pickle.load(open(saved_selected_stations_file))
     else:
         print 'getting data from file ', path
+
+
         data, times, i_list, j_list = data_select.get_data_from_file(path)
-        drainage_area = data_select.get_field_from_file(path, field_name = 'drainage')
+        drainage_area = data_select.get_field_from_file(path, field_name = 'accumulation_area')
 
-
-        #da_2d = drainage_area
-
-        da_2d = np.zeros(lons.shape)
-        for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-            da_2d[i, j] = drainage_area[index]
+        if drainage_area != None:
+            lons = data_select.get_field_from_file(path, field_name = 'longitude')
+            lats = data_select.get_field_from_file(path, field_name = 'latitude')
+            da_2d = drainage_area
+        else:
+            drainage_area = data_select.get_field_from_file(path, field_name = 'drainage')
+            da_2d = np.zeros(polar_stereographic.xs.shape)
+            lons = polar_stereographic.lons
+            lats = polar_stereographic.lats
+            for index, i, j in zip( range(len(i_list)) , i_list, j_list):
+                da_2d[i, j] = drainage_area[index]
 
 
 
@@ -275,12 +282,24 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
 def main():
 
     pylab.rcParams.update(params)
-    #path = 'data/streamflows/output_2d/data1/aex_discharge_1961_01_01_00_00.nc'
-    path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
+    #path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
+    path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
+    old = False
 
-    data, times, i_list, j_list = data_select.get_data_from_file(path)
 
-    da_2d = data_select.get_from_file(path, 'accumulation_area')
+    if not old:
+        data, times, i_list, j_list = data_select.get_data_from_file(path)
+        da_2d = data_select.get_field_from_file(path, 'accumulation_area')
+    else:
+        da_2d = np.zeros(lons.shape)
+        drainage = data_select.get_field_from_file(path, 'drainage')
+        i_list = data_select.get_field_from_file(path, 'x-index')
+        j_list = data_select.get_field_from_file(path, 'y-index')
+        for i, j, theDa in zip(i_list, j_list, drainage):
+            da_2d[i, j] = theDa
+
+
+
 
     data_step = timedelta(days = 1)
 
@@ -318,7 +337,11 @@ def main():
     label2 = 'observation'
     override = {'fontsize': 20}
     plt.subplots_adjust(hspace = 1.5, wspace = 0.4, top = 0.9)
+
     
+    lons = data_select.get_field_from_file(path, field_name = 'longitude')
+    lats = data_select.get_field_from_file(path, field_name = 'latitude')
+
 
     for index, i, j in zip( range(len(i_list)) , i_list, j_list):
         station = get_closest_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
@@ -371,6 +394,9 @@ def main():
                     if t.year < year: continue
                     continuous_model_data[t] = data[t_index, index]
 
+        #if there is no continuous observations for the period
+        if len(continuous_station_data) == 0: continue
+
         print 'Number of continuous years for station %s is %d ' % (station.id, num_of_continuous_years)
 
         #skip stations with less than 20 years of usable data
@@ -406,7 +432,7 @@ def main():
 
 
 
-        plt.subplot(10, 3, current_subplot)
+        plt.subplot(5, 2, current_subplot)
         current_subplot += 1
 
 
@@ -553,6 +579,6 @@ def plot_drainage_scatter(stations, grid_drainage):
 if __name__ == "__main__":
     application_properties.set_current_directory()
     print os.getcwd()
-    get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc')
-    #main()
+    #get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc')
+    main()
     print "Hello World"

@@ -3,7 +3,6 @@ __date__ ="$Jul 23, 2011 1:04:49 PM$"
 
 
 
-from data.rivdis_station_metadata import RivDisStationMeta
 from data.rivdis_station_metadata import RivDisStationManager
 from transforms.affine import AffineTransform
 from data.basin import Basin
@@ -24,6 +23,8 @@ import os
 from shapely.geometry import Point, Polygon
 
 
+import pdb
+
 ###This class is used to generate basins
 
 class CellManager():
@@ -36,12 +37,14 @@ class CellManager():
         self.cells = []
         self.basins = []
 
-        self.nx = -1
-        self.ny = -1
+        self.list_of_cells_1d = []
+
 
 
         lonData = self.ncFile.variables['lon'].data
         latData = self.ncFile.variables['lat'].data
+
+        self.nx, self.ny = lonData.shape
 
         
         self.longitudes = lonData[:,:]
@@ -49,9 +52,23 @@ class CellManager():
         self.accumulation_area = self.ncFile.variables['accumulation_area'].data
         
         #init cells
+        self._create_cells()
+        print 'created cells'
         self._connect_cells()
+        print 'connected the cells'
         #put the cells to basins
         self._determine_basins()
+        print 'identified basins'
+
+        #create shapely polygons corresponding to the basins
+        self._create_corresponding_polygons()
+        print 'created polygons corresponding to the grid cells'
+
+    def _create_cells(self):
+
+        self.cells = [
+            [Cell(ix = i, jy = j) for j in xrange(self.ny)] for i in xrange(self.nx)
+        ]
 
 
     def _connect_cells(self):
@@ -60,15 +77,7 @@ class CellManager():
         '''
 
         flowDirValues = self.ncFile.variables['flow_direction_value'].data
-        self.nx, self.ny = flowDirValues.shape
         print self.nx, self.ny
-        for i in xrange(self.nx):
-            self.cells.append([])
-            for j in xrange(self.ny):
-                theCell = Cell()
-                theCell.x = i
-                theCell.y = j
-                self.cells[i].append(theCell)
 
 
         for i in xrange(self.nx):
@@ -85,7 +94,7 @@ class CellManager():
                     continue
                 theCell.calculate_number_of_upstream_cells()
 
-        self._create_corresponding_polygons()
+        
 
     def _create_corresponding_polygons(self):
         aft = AffineTransform()
@@ -180,13 +189,18 @@ class CellManager():
     def plot_basins(self):
         basin_values = -np.ones((self.nx, self.ny))
         for basin in self.basins:
+
             # @type basin Basin
+            #if int(basin.name.split('_')[1]) not in [0,4,1,11,15,20,22,25]: continue
+
             for theCell in basin.cells:
                 # @type theCell Cell
                 i, j = theCell.coords()
-                basin_values[i,j] = basin.id
 
-        basin_values = np.ma.masked_where(basin_values < 0, basin_values)
+                theValue = basin.id if theCell.next != None else -2
+                basin_values[i,j] = theValue
+
+        basin_values = np.ma.masked_where(basin_values == -1, basin_values)
         lons, lats = self.longitudes, self.latitudes
         lons = lons.copy()
         lons[lons <= 180] += 360
@@ -201,8 +215,9 @@ class CellManager():
                         )
         lons, lats = basemap(lons, lats)
         colormap = plt.cm.get_cmap(name = 'prism', lut = len(self.basins))
-        
-        basemap.pcolormesh(lons, lats, basin_values, cmap = colormap)
+        colormap.set_under(color = 'k')
+
+        basemap.pcolormesh(lons, lats, basin_values, cmap = colormap, vmin = 0)
 
         basemap.drawcoastlines()
         plt.show()
@@ -249,43 +264,112 @@ class CellManager():
 
         dataset.close()
 
+
+    
+    def _get_point_with_closest_drainage(self, i0, j0, di, dj, station_accum_area):
+        i_guess = i0
+        j_guess = j0
+        d_guess = _abs_diff(station_accum_area, self.accumulation_area[i_guess, j_guess])
+        for i in xrange(i0 - di, i0 + di + 1):
+            for j in xrange(j0 - dj, j0 + dj + 1):
+                d1 = _abs_diff(station_accum_area, self.accumulation_area[i, j])
+                if d1 < d_guess:
+                    i_guess = i
+                    j_guess = j
+                    d_guess = d1
+                    
+        return self.cells[i_guess][j_guess]
+
     def get_info_corresponding_to_stations(self, stations):
+        
+        new_station_list = []
+        new_station_list.extend(stations)
         for i in xrange(self.nx):
             for j in xrange(self.ny):
-                for station in stations:
-                    theCell = self.cells[i][j]
+                theCell = self.cells[i][j]
+                lastConsideredStation = None # for better performance
+                for station in new_station_list:
                     if theCell.basin == None: continue
                     # @type theCell Cell
-                    if theCell.polygon.contains(station.point):
+                    if theCell.polygon.intersects(station.point):
+                        # @type station RivDisStationMeta
+                        station_da = station.drainage_area
+                        if station_da > 0:
+                            theCell_guess = self._get_point_with_closest_drainage(i, j, 2, 2, station_da)
+                        else:
+                            theCell_guess = theCell
                         station.basin = theCell.basin.name
                         # @type station RivDisStationMeta
-                        station.model_i = i
-                        station.model_j = j
-                        break
-        
+                        station.model_i = theCell_guess.x
+                        station.model_j = theCell_guess.y
+                        station.gridcell_polygon = theCell_guess.polygon
+                        print station.name, theCell.basin.name
+                        lastConsideredStation = station
+
+                if lastConsideredStation != None: new_station_list.remove(lastConsideredStation)
         pass
 
-    def plot_drainage_area_map(self):
-        pass
+    def test_contains(self):
+        p = Point((19.54, -32.34))
+        for i in xrange(self.nx):
+            for j in xrange(self.ny):
+                theCell = self.cells[i][j]
+                # @type theCell Cell
+                print theCell.polygon.distance(p)
+                if theCell.polygon.contains(p):
+                    print p.wkt
+                    print theCell.polygon.wkt
+                    print theCell.basin.name
+                    print i, j
+                    return
+        print p.wkt
 
 
+def _abs_diff(a, b):
+    return np.abs(a - b)
+
+ 
+
+def get_model_info_for_rivdis_stations(cm):
+    '''
+    Generate basin mask and save it to the netcdf file
+    1 - basin cell
+    0 - not a basin cell
+    -1 - outlet of the basin
+    '''
+    #read in available station metadata
+    rm = RivDisStationManager()
+    rm.parseStationMetaData()
+    cm.get_info_corresponding_to_stations(rm.getStations())
+
+    rm.saveStationsMetaData()
+    
+def test():
+    folder = 'data/hydrosheds'
+    file_path = os.path.join(folder, 'directions_af_parallel_crop.nc')
+    cm = CellManager(path = file_path)
+    cm.test_contains()
+
+    pass
+
+
+def main():
+    folder = 'data/hydrosheds'
+    file_path = os.path.join(folder, 'directions_af_parallel_crop.nc')
+    cm = CellManager(path = file_path)
+    get_model_info_for_rivdis_stations(cm)
+
+    #cm.save_basins_mask()
+    #cm.plot_basins()
+
+
+def debug():
+    pdb.run('main()')
 
 
 if __name__ == "__main__":
     application_properties.set_current_directory()
-    folder = 'data/hydrosheds'
-    file_path = os.path.join(folder, 'directions_af_parallel_crop.nc')
-    cm = CellManager(path = file_path)
 
-    #read in available station metadata
-    rm = RivDisStationManager()
-    rm.parseStationMetaData()
-
-    for country in rm.getCountries():
-        # @type country Country
-        cm.get_info_corresponding_to_stations(country.stations)
-
-    rm.saveStationsMetaData()
-    cm.save_basins_mask()
-    #cm.plot_basins()
+#    test()
+    main()
     print "Hello World"

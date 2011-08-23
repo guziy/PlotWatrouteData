@@ -17,7 +17,7 @@ def zoom_to_qc(plotter):
     ymin, ymax = plotter.ylim()
     plotter.ylim(ymin + 0.05 * (ymax - ymin) , ymax * 0.25)
 
-    xmin, xmax = plt.xlim()
+    xmin, xmax = plotter.xlim()
     plotter.xlim(xmin + (xmax - xmin) * 0.55, 0.72*xmax)
 
 

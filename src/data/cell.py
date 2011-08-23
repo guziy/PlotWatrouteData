@@ -8,7 +8,7 @@ class Cell():
     '''
     Class representing a grid cell
     '''
-    def __init__(self, id = None):
+    def __init__(self, id = None, ix = -1, jy = -1):
         self.id = id
         self.next = None
         self.previous = []
@@ -20,8 +20,8 @@ class Cell():
         self.drainage_area = -1 #drainage area in km**2
         self.ibn = 3
         self.chslp = -1
-        self.x = -1
-        self.y = -1
+        self.x = ix
+        self.y = jy
         self.basin = None
         self.is_end_cell = False
         self.direction_value = -1

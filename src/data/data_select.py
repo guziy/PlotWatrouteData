@@ -1,3 +1,4 @@
+
 __author__="huziy"
 __date__ ="$31.12.2010 4:42:33$"
 
@@ -10,13 +11,23 @@ from netCDF4 import chartostring
 from mpl_toolkits.basemap import NetCDFFile
 
 
+
+
 def get_field_from_file(path = '', field_name = ''):
+    '''
+    Returns None if the requested field is not in the file
+    '''
     ds = nc.Dataset(path)
     print 'field name = ', field_name
-    the_field = ds.variables[field_name][:]
-    ds.close()
 
+    if ds.variables.has_key(field_name):
+        the_field = ds.variables[field_name][:]
+    else:
+        the_field = None
+
+    ds.close()
     return the_field
+
 
 def get_data_from_file(path, field_name = 'water_discharge'):
     date_format = '%Y_%m_%d_%H_%M'
@@ -24,9 +35,6 @@ def get_data_from_file(path, field_name = 'water_discharge'):
     print path
     ds = NetCDFFile(path, 'r')
     print ds.variables.keys()
-
-
-    print 'drainage shape = ', ds.variables['drainage'][:].shape
 
     #dims: time, cell_index
     discharge = ds.variables[field_name][:]
@@ -38,9 +46,15 @@ def get_data_from_file(path, field_name = 'water_discharge'):
     
     times = chartostring(times)
     print times.shape, times[-1]
-    
-    x_indices = ds.variables['x-index'][:]
-    y_indices = ds.variables['y-index'][:]
+
+
+    if ds.variables.has_key('x_index'):
+        x_indices = ds.variables['x_index'][:]
+        y_indices = ds.variables['y_index'][:]
+    else:
+        x_indices = ds.variables['x-index'][:]
+        y_indices = ds.variables['y-index'][:]
+
 
     date_times = map(lambda x: datetime.strptime( x , date_format ), times)
     ds.close()
@@ -457,6 +471,25 @@ def test_select():
     print len(means)
     print means[1980]
     print means[1972].shape
+
+
+
+
+def get_mean_for_day_of_year(stamp_dates, values):
+    '''
+    Returns daily normals (mean for each day of year)
+    '''
+    surfDict = {}
+    for stamp_date, value in zip(stamp_dates, values):
+        if surfDict.has_key(stamp_date):
+            surfDict[stamp_date].append(value)
+        else:
+            surfDict[stamp_date] = [value]
+
+    sortedDates = sorted(surfDict.keys())
+    return sortedDates, [np.mean(surfDict[d]) for d in sortedDates]
+
+
 
 if __name__ == "__main__":
     test_select()

@@ -19,17 +19,14 @@ import readers.read_infocell as infocell
 import data.data_select as data_select
 
 import application_properties
-application_properties.set_current_directory()
 
 
 
 
-def plot_mean_hydrograph_with_gw_ouflow():
+
+def plot_mean_hydrograph_with_gw_ouflow(data_path = 'data/streamflows/hydrosheds_euler10_spinup100yrs'):
 #TODO: Implement
     basins = infocell.get_basins_with_cells_connected_using_hydrosheds_data()
-
-
-    data_path = 'data/streamflows/hydrosheds_euler12/aew_discharge_2041_01_01_00_00.nc'
 
     basinName = 'RDO'
     theBasin = None
@@ -253,6 +250,7 @@ def main():
 
 
 if __name__ == "__main__":
+    application_properties.set_current_directory()
     main()
 
     print "Hello World"

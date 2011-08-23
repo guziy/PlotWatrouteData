@@ -13,27 +13,7 @@ import numpy as np
 
 #compares low flows and high flows
 
-from math import sqrt
-import pylab
-inches_per_pt = 1.0 / 72.27               # Convert pt to inch
-golden_mean = (sqrt(5.0) - 1.0) / 2.0     # Aesthetic ratio
-fig_width = 800 * inches_per_pt          # width in inches
-fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, fig_height]
-
-font_size = 20
-
-params = {
-        'axes.labelsize': font_size,
-        'font.size':font_size,
-        'text.fontsize': font_size,
-        'legend.fontsize': font_size,
-        'xtick.labelsize': font_size,
-        'ytick.labelsize': font_size,
-        'figure.figsize': fig_size
-        }
-
-pylab.rcParams.update(params)
+import util.plot_utils as plot_utils
 
 #return periods to colors and markers
 colors = {2:'green', 5:'red', 10:'m', 30:'k'}
@@ -208,10 +188,14 @@ def plot_dates_scatter(model_high_dates, station_high_dates, model_low_dates, st
 
 def main():
     path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
+    #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na.nc'
     data = pe_calc.get_station_and_corresponding_model_data(path = path)
     print len(data)
     delete_not_continuous(data)
 
+
+
+    plot_utils.apply_plot_params(width_pt = 500, font_size = 18)
 
     high_return_periods = [10, 30]
     high_start_month = 3
@@ -318,7 +302,8 @@ def main():
     plt.savefig('high_return_levels_scatter.png')
 
     ##high flow values
-    plot_scatter( station_maxima, model_maxima, "observed", "modelled",
+    plot_scatter( station_maxima, model_maxima, "observed (${\\rm m^3/s}$)",
+                    "modelled (${\\rm m^3/s}$)",
                     "high flow values", different_shapes_and_colors = False)
     plt.savefig('high_values_scatter.png')
 
@@ -424,9 +409,10 @@ def main():
 
 
         #plot scatter for low flow for each station separately
-        plot_scatter( current_station_minima, current_model_minima, "observed", "modelled",
-                  "low flow values (%s)" % station.id, different_shapes_and_colors = False)
-        plt.savefig('low_values_scatter_%s.png' % station.id)
+        plot_scatter( current_station_minima, current_model_minima, "observed (${\\rm m^3/s}$)",
+                    "modelled (${\\rm m^3/s}$)",
+                  "low flow values ({0})".format(station.id), different_shapes_and_colors = False)
+        plt.savefig('low_values_scatter_{0}.pdf'.format( station.id ), bbox_inches = 'tight')
 
 
 
@@ -443,7 +429,7 @@ def main():
         print sV, mV
     plot_scatter( station_minima, model_minima, "observed", "modelled",
                   "low flow values", different_shapes_and_colors = False)
-    plt.savefig('low_values_scatter.png')
+    plt.savefig('low_values_scatter.pdf', bbox_inches = 'tight')
 
 
 
