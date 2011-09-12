@@ -35,12 +35,15 @@ class Cell():
 
 
     def set_next(self, next_cell):
-
+        '''
+        set the next cell for the current cell
+        '''
         if self == next_cell:
             self.next = None
             print 'endorheic'
             return
 
+        #if changing the next cell
         if self.next != None and self in self.next.previous:
             self.next.previous.remove(self)
 
@@ -54,6 +57,15 @@ class Cell():
         assert self not in self.previous
 
 
+    def get_upstream_cells(self):
+        '''
+        returns a list of all upstream cells
+        '''
+        result = []
+        for prev in self.previous:
+            result.extend(prev.get_upstream_cells())
+            result.append(prev)
+        return result
 
     def coords(self):
         return self.x, self.y
@@ -74,8 +86,6 @@ class Cell():
     def add_previous(self, prev):
         if prev == self:
             print 'endorheic'
-
-
 
         if prev not in self.previous:
             self.previous.append(prev)

@@ -82,6 +82,7 @@ class CellManager():
 
         for i in xrange(self.nx):
             for j in xrange(self.ny):
+                self.cells[i][j].drainage_area = self.accumulation_area[i, j]
                 iNext, jNext = direction_and_value.to_indices(i, j, flowDirValues[i, j])
                 if iNext >= 0 and iNext < self.nx and jNext >= 0 and jNext < self.ny:
                     self.cells[i][j].set_next(self.cells[iNext][jNext])
@@ -270,8 +271,14 @@ class CellManager():
         i_guess = i0
         j_guess = j0
         d_guess = _abs_diff(station_accum_area, self.accumulation_area[i_guess, j_guess])
-        for i in xrange(i0 - di, i0 + di + 1):
-            for j in xrange(j0 - dj, j0 + dj + 1):
+
+        imin = max(0, i0 - di)
+        imax = min(i0 + di + 1, self.nx)
+
+        jmin = max(0, j0 - dj)
+        jmax = min(j0 + dj + 1, self.ny)
+        for i in xrange(imin, imax):
+            for j in xrange(jmin, jmax):
                 d1 = _abs_diff(station_accum_area, self.accumulation_area[i, j])
                 if d1 < d_guess:
                     i_guess = i
@@ -284,45 +291,57 @@ class CellManager():
         
         new_station_list = []
         new_station_list.extend(stations)
+
+
         for i in xrange(self.nx):
             for j in xrange(self.ny):
                 theCell = self.cells[i][j]
-                lastConsideredStation = None # for better performance
+                to_remove = [] # for better performance
                 for station in new_station_list:
                     if theCell.basin == None: continue
                     # @type theCell Cell
-                    if theCell.polygon.intersects(station.point):
+                    if theCell.polygon.buffer(0.0001).intersects(station.point):
                         # @type station RivDisStationMeta
                         station_da = station.drainage_area
                         if station_da > 0:
                             theCell_guess = self._get_point_with_closest_drainage(i, j, 2, 2, station_da)
                         else:
                             theCell_guess = theCell
+
+                        station.corresponding_cell = theCell_guess
                         station.basin = theCell.basin.name
                         # @type station RivDisStationMeta
                         station.model_i = theCell_guess.x
                         station.model_j = theCell_guess.y
                         station.gridcell_polygon = theCell_guess.polygon
-                        print station.name, theCell.basin.name
-                        lastConsideredStation = station
+                        to_remove.append(station)
 
-                if lastConsideredStation != None: new_station_list.remove(lastConsideredStation)
+                for station in to_remove:
+                    new_station_list.remove(station)
         pass
 
     def test_contains(self):
         p = Point((19.54, -32.34))
+        dmin = 1e6
+        cell_min = None
         for i in xrange(self.nx):
             for j in xrange(self.ny):
                 theCell = self.cells[i][j]
                 # @type theCell Cell
-                print theCell.polygon.distance(p)
-                if theCell.polygon.contains(p):
+                d = theCell.polygon.distance(p)
+                if dmin > d:
+                    dmin = d
+                    cell_min = theCell
+                if theCell.polygon.buffer(0.0001).intersects(p):
                     print p.wkt
                     print theCell.polygon.wkt
-                    print theCell.basin.name
+                    print theCell.basin
                     print i, j
-                    return
+                    return None
+        print dmin
         print p.wkt
+
+        return cell_min
 
 
 def _abs_diff(a, b):
@@ -341,6 +360,7 @@ def get_model_info_for_rivdis_stations(cm):
     rm = RivDisStationManager()
     rm.parseStationMetaData()
     cm.get_info_corresponding_to_stations(rm.getStations())
+    rm.compare_accumulation_areas(cm.accumulation_area)
 
     rm.saveStationsMetaData()
     
@@ -348,19 +368,25 @@ def test():
     folder = 'data/hydrosheds'
     file_path = os.path.join(folder, 'directions_af_parallel_crop.nc')
     cm = CellManager(path = file_path)
-    cm.test_contains()
+    cell_min = cm.test_contains()
+
+    if cell_min != None:
+        i0, j0 = cell_min.coords()
+        for di in xrange(-2,3):
+            for dj in xrange(-2,3):
+                print cm.cells[i0 + di][j0 + dj].polygon.wkt
 
     pass
 
 
 def main():
     folder = 'data/hydrosheds'
-    file_path = os.path.join(folder, 'directions_af_parallel_crop.nc')
+    file_path = os.path.join(folder, 'directions_af_croped.nc')
     cm = CellManager(path = file_path)
     get_model_info_for_rivdis_stations(cm)
 
-    #cm.save_basins_mask()
-    #cm.plot_basins()
+    cm.save_basins_mask()
+    cm.plot_basins()
 
 
 def debug():

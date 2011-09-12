@@ -18,6 +18,7 @@ class RivDisStationMeta():
         self.model_j = -1
         self.point = point
         self.gridcell_polygon = None
+        self.corresponding_cell = None
 
         pass
 
@@ -51,6 +52,13 @@ class RivDisStationManager():
             res.extend(c.stations)        
         return res
 
+
+    def compare_accumulation_areas(self, areas):
+        for s in self.getStations():
+            theCell = s.corresponding_cell
+            if theCell == None: continue
+            print s.drainage_area, theCell.drainage_area, theCell.coords(), areas[theCell.coords()], s.name
+
     def parseStationMetaData(self, path = 'data/rivdis/lat_long_station_africa.csv'):
         for line in open(path):
             line = line.strip()
@@ -74,7 +82,7 @@ class RivDisStationManager():
     def saveStationsMetaData(self, path = 'station_info.txt'):
         f = open(path, 'w')
         
-        f.write('Station;Longitude;Latitude;Country; Basin;model_i;model_j \n')
+        f.write('Station;Longitude;Latitude;Country; Basin;model_i;model_j;stationCA;cellCA\n')
         for country in self.countries:
             for theStation in country.stations:
                 if theStation.basin == None:
@@ -82,10 +90,13 @@ class RivDisStationManager():
                     print theStation.point.x, theStation.point.y
                     print theStation.point.wkt
                     continue
-                line = '{0};{1};{2};{3};{4};{5};{6}'.format(
+                line = '{0};{1};{2};{3};{4};{5};{6};{7};{8}'.format(
                             theStation.name, theStation.point.x, theStation.point.y,
                             country.name,
-                            theStation.basin, theStation.model_i, theStation.model_j
+                            theStation.basin, theStation.model_i, theStation.model_j,
+                            # @type theStation RivDisStationMeta
+                            theStation.drainage_area,
+                            theStation.corresponding_cell.drainage_area
                             )
                 print line
                 f.write(line + '\n')

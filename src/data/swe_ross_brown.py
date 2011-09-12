@@ -17,9 +17,9 @@ from netCDF4 import date2num, num2date
 
 
 class SweHolder:
-    '''
+    """
     point (1,1) - is a lower left point of the grid
-    '''
+    """
     def __init__(self):
         self.root_path = 'data/swe_ross_brown/derksen'
         self.step = 0.25
@@ -51,6 +51,9 @@ class SweHolder:
         return lons, lats
 
 
+    def get_mean_for_months(self, months = None):
+        if not months: months = []
+        pass
 
 
     def _initDates(self):
@@ -64,8 +67,11 @@ class SweHolder:
     def getEndDate(self):
         return self.all_dates[-1]
 
-
-    def getMeanDataFromNetCDFforPoints(self, geopointList = [], startDate = None, endDate = None):
+    def getTemporalMeanDataFromNetCDFforPoints(self, geopointList = [], startDate = None,
+                                             endDate = None, months = []):
+        '''
+        months - months of year over which the average is taken
+        '''
         i_indices = []
         j_indices = []
         for point in geopointList:
@@ -82,16 +88,53 @@ class SweHolder:
         times = num2date(times[:], units = times.units)
 
         data = ds.variables['SWE']
-
         query = (times >= startDate) & (times <= endDate)
-        return times[query][:], np.mean(data[query, i_indices, j_indices], axis = 1)
+        for i in xrange(len(times)):
+            if not query[i]: continue
+            if times[i].month not in months:
+                query[i] = False
+        return np.mean(data[query, i_indices, j_indices], axis = 0)
+
+
+
+    def getSpatialMeanDataFromNetCDFforPoints(self, geopointList = [], startDate = None,
+                                             endDate = None, months = []):
+        """
+        months - months of year over which the average is taken
+        """
+        i_indices = []
+        j_indices = []
+        for point in geopointList:
+            dlon = point.longitude - self.lowerLeft.longitude
+            dlat = point.latitude - self.lowerLeft.latitude
+            i = int(dlon / self.step)
+            j = int(dlat / self.step)
+            i_indices.append(i)
+            j_indices.append(j)
+
+        ds = Dataset(self.pathToNetCDF)
+
+        times = ds.variables['time']
+        times = num2date(times[:], units = times.units)
+
+        data = ds.variables['SWE']
+        if not len(months):
+            query = (times >= startDate) & (times <= endDate)
+            return times[query][:], np.mean(data[query, i_indices, j_indices], axis = 1) 
+        else:
+            query = (times >= startDate) & (times <= endDate)
+            for i in xrange(len(times)):
+                if not query[i]: continue
+                if times[i].month not in months:
+                    query[i] = False
+            return times[query][:], np.mean(data[query, i_indices, j_indices], axis = 1)
 
 
 
     def _readFromTxtFile(self, path):
-        '''
+        """
         return data in form of matrix (nx * ny) from path
-        '''
+        """
         data = [[]]
         record_length = 4
         f = open(path)
@@ -121,7 +164,7 @@ class SweHolder:
         for i, theDate in enumerate(self.all_dates):
             filePath = os.path.join(self.root_path, theDate.strftime(self.file_name_format))
             data = self._readFromTxtFile(filePath)
-            if nLon == None:
+            if nLon is None:
                 nLon, nLat = data.shape
                 ds.createDimension('lon', nLon)
                 ds.createDimension('lat', nLat)
@@ -148,10 +191,11 @@ class SweHolder:
 
 
 
-    def getMeanDataForPoints(self, geopointList = [], startDate = None, endDate = None):
-        '''
+    def getMeanDataForPoints(self, geopointList=None, startDate=None, endDate=None):
+        """
             returns sorted list of dates and corresponding list of values
-        '''
+        """
+        if not geopointList: geopointList = []
         i_indices = []
         j_indices = []
         for point in geopointList:
@@ -167,7 +211,7 @@ class SweHolder:
         result = {}
         for fileName in os.listdir(self.root_path):
             d = datetime.strptime(fileName, self.file_name_format)
-            if startDate != None and endDate != None:
+            if startDate is not None and endDate is not None:
                 if d < startDate or d > endDate:
                     continue
 
@@ -186,9 +230,9 @@ class SweHolder:
         pass
 
     def getDataClosestTo(self, geopoint):
-        '''
+        """
         Returns a map {time => value(mm)}
-        '''
+        """
         dlon = geopoint.longitude - self.lowerLeft.longitude
         dlat = geopoint.latitude - self.lowerLeft.latitude
         i = int(dlon / self.step)

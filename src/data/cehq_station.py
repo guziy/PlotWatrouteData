@@ -181,7 +181,7 @@ class Station:
 
 
     def info(self):
-        return '%s: lon=%f; lat = %f; drainage(km**2) = %f ' % (self.id,
+        return '%s: lon=%3.1f; lat = %3.1f; drainage(km**2) = %f ' % (self.id,
                                                                 self.longitude, self.latitude,
                                                                 self.drainage_km2)
 
@@ -208,16 +208,27 @@ class Station:
 
 
 
+def print_info_of(station_ids):
+    for the_id in station_ids:
+        s = Station()
+        path = 'data/cehq_measure_data/%06d_Q.txt' % the_id
+        s.parse_from_cehq(path)
+        print s.info()
+    
+
 if __name__ == "__main__":
     application_properties.set_current_directory()
+
+    station_ids = [104001, 103715, 93801, 93806, 81006, 92715, 61502, 80718, 42607, 40830]
+    print_info_of(station_ids)
+
+
+
     s = Station()
     s.parse_from_cehq('data/cehq_measure_data/051004_Q.txt')
-
-#    for d, v in zip(s.dates, s.values):
-#        print d, '-->' ,v
     data = s.get_continuous_dataseries_for_year(1970)
-    for date in sorted(data.keys()):
-        print date, '-->', data[date]
+#    for date in sorted(data.keys()):
+#        print date, '-->', data[date]
 
     print np.max(s.values)
     print np.max(s.dates)

@@ -1,6 +1,6 @@
 __author__="huziy"
 __date__ ="$Jul 23, 2011 3:42:54 PM$"
-
+import numpy as np
 
 class Basin():
     '''
