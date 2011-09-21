@@ -24,6 +24,9 @@ path_to_infocell = 'data/infocellA2009_alloutlets.txt'
 import os
 
 def read_lon_lat(path, subtract_360 = False):
+    """
+    todo: document
+    """
     result = []
     print os.getcwd()
     f = open(path)
@@ -40,7 +43,7 @@ def read_lon_lat(path, subtract_360 = False):
         for field in fields[start:]:
             lat_lon = float(field)
             if subtract_360:
-                lat_lon = lat_lon - 360
+                lat_lon -= 360
             result.append(lat_lon)
     return result
 
