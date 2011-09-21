@@ -2,6 +2,7 @@
 __author__="huziy"
 __date__ ="$8 dec. 2010 10:20:08$"
 
+from plot2D.index_object import IndexObject
 from data.modelpoint import ModelPoint
 from data.cehq_station import Station
 import os.path
@@ -25,7 +26,13 @@ import matplotlib as mpl
 import data.data_select as data_select
 import plot2D.plot_utils as plot_utils
 
+from index_object import IndexObject
+import netCDF4 as nc
 
+from data.cell import Cell
+
+import diagnose_ccc.compare_swe as compare_swe
+import diagnose_ccc.compare_precip as compare_precip
 
 MAXIMUM_DISTANCE_METERS = 45000.0 #m
 
@@ -41,7 +48,7 @@ inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5.0) - 1.0) / 2.0       # Aesthetic ratio
 fig_width = 1500 * inches_per_pt          # width in inches
 fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, fig_height]
+fig_size = [fig_width, 2 * fig_height]
 
 params = {
         'axes.labelsize': 20,
@@ -68,16 +75,31 @@ def create_dates_of_year(date_list = [], year = 2000):
 
 
 
+
+
 def objective_function(distance, da1, da2):
+    """
+    objective function that should be minimal
+    at the station corresponding to the given cell
+    """
     alpha = 1
     return distance / MAXIMUM_DISTANCE_METERS + np.abs(da2 - da1) / da1 * alpha
 
 
-def get_closest_station(lon, lat, cell_drain_area_km2, station_list):
-    '''
+def get_neighbour_cell_with_closest_da(station):
+    """
+    returns a neighbour of station with the nearest drainage area
+    """
+    i, j = polar_stereographic.get_indices_of_the_closest_point_to(station.longitude, station.latitude)
+    #TODO: finish this method
+    pass
+
+
+def get_corresponding_station(lon, lat, cell_drain_area_km2, station_list):
+    """
     returns the closest station to (lon, lat),
     or None if it was not found
-    '''
+    """
     #find distance to the closest station
     objective = None
     result = None
@@ -86,7 +108,7 @@ def get_closest_station(lon, lat, cell_drain_area_km2, station_list):
         distance = get_distance_in_meters(lon, lat, station.longitude, station.latitude)
         objective1 = objective_function(distance, station_drainage, cell_drain_area_km2)
         
-        if objective == None:
+        if objective is None:
             objective = objective1
             result = station
         else:
@@ -117,6 +139,9 @@ def read_station_data(folder = 'data/cehq_measure_data'):
 
 
 def average_for_each_day_of_year(times, data, start_date = None, end_date = None, year = 2000):
+    """
+    TODO: documentation
+    """
     values = {}
     counts = {}
 
@@ -128,7 +153,7 @@ def average_for_each_day_of_year(times, data, start_date = None, end_date = None
 
     for date, time, the_value in zip(dates, times, data):
 
-        if start_date != None and end_date != None:
+        if start_date is not None and end_date is not None:
             if time < start_date:
                 continue
             if time > end_date:
@@ -155,15 +180,13 @@ def average_for_each_day_of_year(times, data, start_date = None, end_date = None
     return result_dates, result_values
         
  
-def calculate_skills(selected_stations = [], 
-                    dates = [], selected_station_values = [],
-                    selected_model_values = [],
-                    grid_drainages = [],
-                    grid_lons = [], grid_lats = []):
+def calculate_skills(selected_stations=None, dates=[], selected_station_values=[], selected_model_values=[],
+                     grid_drainages=[], grid_lons=[], grid_lats=[]):
 
 
 
-    for i in range(len(selected_stations)):         
+    if not selected_stations: selected_stations = []
+    for i in range(len(selected_stations)):
          model_values = selected_model_values[i]
          station = selected_stations[i]
          station_values = selected_station_values[i]
@@ -227,7 +250,7 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
         data, times, i_list, j_list = data_select.get_data_from_file(path)
         drainage_area = data_select.get_field_from_file(path, field_name = 'accumulation_area')
 
-        if drainage_area != None:
+        if drainage_area is not None:
             lons = data_select.get_field_from_file(path, field_name = 'longitude')
             lats = data_select.get_field_from_file(path, field_name = 'latitude')
             da_2d = drainage_area
@@ -255,8 +278,8 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
 
         selected_stations = []
         for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-            station = get_closest_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
-            if station == None or station in selected_stations:
+            station = get_corresponding_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
+            if station is None or station in selected_stations:
                 continue
             selected_stations.append(station)
             data_point = ModelPoint(times, data[:, index])
@@ -279,22 +302,133 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
 
 
 
+def get_connected_cells(directions_path):
+    """
+    returns a 2d array of connected cells,
+    caution: works with indices, so be careful whenever there is
+    a subsetting
+    """
+    ds = nc.Dataset(directions_path)
+    next_i = ds.variables['flow_direction_index0'][:]
+    next_j = ds.variables['flow_direction_index1'][:]
+    ds.close()
+
+
+    nx, ny = next_i.shape
+
+    cells = [[Cell(ix = i, jy = j) for j in xrange(ny)]
+                for i in xrange(nx)]
+    
+    #connect cells
+    for i in xrange(nx):
+        for j in xrange(ny):
+            iNext = next_i[i, j]
+            jNext = next_j[i, j]
+            theCell = cells[i][j]
+            # @type theCell Cell
+            if iNext >= 0 and jNext >= 0:
+                theCell.set_next(cells[iNext][jNext])
+
+    return cells
+
+
+
+
+
+def get_mask_for_station(directions_file = 'data/hydrosheds/directions_for_streamflow9.nc',
+                          i_index = -1, j_index = -1):
+    cells = get_connected_cells(directions_file)
+
+    nx = len(cells)
+    ny = len(cells[0])
+
+    the_mask = np.zeros((nx, ny))
+
+    theCell = cells[i_index][j_index]
+    the_mask[theCell.coords()] = 1 #of course include the current cell
+
+    # @type theCell Cell
+    upstream_cells = theCell.get_upstream_cells()
+    for c in upstream_cells:
+        the_mask[c.coords()] = 1
+
+    domain_mask = compare_swe.get_domain_mask()
+
+    the_mask = the_mask * domain_mask
+    return the_mask
+
+
+
+
+def plot_total_precip_for_upstream(directions_file = 'data/hydrosheds/directions_for_streamflow9.nc',
+                          i_index = -1, j_index = -1, station_id = ''):
+
+    """
+    Plot total precipitation integrated over upstream cells for model(ccc file) and observation(gpcc)
+    """
+    the_mask = get_mask_for_station(directions_file=directions_file, i_index=i_index, j_index=j_index)
+
+    compare_precip.compare_precip(mask = the_mask, label = station_id)
+
+
+    pass
+
+def plot_swe_for_upstream(directions_file = 'data/hydrosheds/directions_for_streamflow9.nc',
+                          i_index = -1, j_index = -1, station_id = ''):
+    """
+    plot sum of swe over all upstream cells for a given station, for model and observation
+    data
+    """
+
+#    compare_swe.compare_daily_normals_mean_over_mask(the_mask,
+#                                        start = datetime(1980,01,01,00),
+#                                        end = datetime(1996, 12, 31,00),
+#                                        label = station_id)
+    
+    the_mask = get_mask_for_station(directions_file=directions_file, i_index=i_index, j_index=j_index)
+
+    compare_swe.compare_daily_normals_integral_over_mask(the_mask,
+                                        start = datetime(1980,01,01,00),
+                                        end = datetime(1996, 12, 31,00),
+                                        label = station_id)
+
+
+
+    pass
+
+
+def plot_precip_for_upstream(i_index, j_index, station_id):
+
+    """
+    plot precipitation timeseries averaged over
+    upstream cells
+    """
+    pass
+
+
 def main():
 
+    """
+
+    """
+    skip_ids = ['081007', '081002']
+
     pylab.rcParams.update(params)
-    #path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
-    path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
-    old = False
+    path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
+    #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
 
+    old = True #in the old version drainage and lon,lats in the file are 1D
 
+    data, times, i_list, j_list = data_select.get_data_from_file(path)
     if not old:
-        data, times, i_list, j_list = data_select.get_data_from_file(path)
         da_2d = data_select.get_field_from_file(path, 'accumulation_area')
+        lons = data_select.get_field_from_file(path, field_name = 'longitude')
+        lats = data_select.get_field_from_file(path, field_name = 'latitude')
     else:
+        lons = polar_stereographic.lons
+        lats = polar_stereographic.lats
         da_2d = np.zeros(lons.shape)
         drainage = data_select.get_field_from_file(path, 'drainage')
-        i_list = data_select.get_field_from_file(path, 'x-index')
-        j_list = data_select.get_field_from_file(path, 'y-index')
         for i, j, theDa in zip(i_list, j_list, drainage):
             da_2d[i, j] = theDa
 
@@ -316,10 +450,6 @@ def main():
     reload(sys)
     sys.setdefaultencoding('iso-8859-1')
 
-#    da_2d = np.zeros((lons.shape))
-#    for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-#        da_2d[i, j] = drainage_area[index]
-       
 
     selected_stations = []
     selected_model_values = []
@@ -331,24 +461,56 @@ def main():
 
 
     plt.figure()
+
+
+
     current_subplot = 1
 
     label1 = 'model'
     label2 = 'observation'
     override = {'fontsize': 20}
-    plt.subplots_adjust(hspace = 1.5, wspace = 0.4, top = 0.9)
+    plt.subplots_adjust(hspace = 0.35, wspace = 0.2, top = 0.9)
 
     
-    lons = data_select.get_field_from_file(path, field_name = 'longitude')
-    lats = data_select.get_field_from_file(path, field_name = 'latitude')
 
-
+    index_objects = []
     for index, i, j in zip( range(len(i_list)) , i_list, j_list):
-        station = get_closest_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
+        index_objects.append(IndexObject(positionIndex = index, i = i, j = j))
+
+    #sort by latitude
+    index_objects.sort( key = lambda x: x.j, reverse = True)
 
 
-        if station == None or station in selected_stations:
+    fig = plt.figure()
+    for indexObj in index_objects:
+        i = indexObj.i
+        j = indexObj.j
+        # @type indexObj IndexObject
+        index = indexObj.positionIndex
+        station = get_corresponding_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
+
+        if station is None or station in selected_stations:
             continue
+
+        #skip some stations
+        if station.id in skip_ids:
+            continue
+
+
+        #try now to find the point with the closest drainage area
+#        current_diff = np.abs(station.drainage_km2 - da_2d[i, j])
+#        for di in xrange(-1,2):
+#            for dj in xrange(-1,2):
+#                the_diff = np.abs(station.drainage_km2 - da_2d[i + di, j + dj])
+#                if the_diff < current_diff: #select different grid point
+#                    current_diff = the_diff
+#                    i = i + di
+#                    j = j + dj
+#                    indexObj.i = i
+#                    indexObj.j = j
+
+
+
 
         #found station plot data
         print station.name
@@ -368,9 +530,6 @@ def main():
         if end_date < start_date:
             continue
 
-
-
- 
 
         #select data for years that do not have gaps
         start_year = start_date.year
@@ -395,7 +554,7 @@ def main():
                     continuous_model_data[t] = data[t_index, index]
 
         #if there is no continuous observations for the period
-        if len(continuous_station_data) == 0: continue
+        if not len(continuous_station_data): continue
 
         print 'Number of continuous years for station %s is %d ' % (station.id, num_of_continuous_years)
 
@@ -432,7 +591,7 @@ def main():
 
 
 
-        plt.subplot(5, 2, current_subplot)
+        fig.add_subplot(5, 2, current_subplot)
         current_subplot += 1
 
 
@@ -465,8 +624,18 @@ def main():
         selected_model_values.append(mean_data_model)
         selected_stations.append(station)
 
-        plt.ylabel("${\\rm m^3/s}$")
-        plt.title(station.id, override)
+
+#        plot_swe_for_upstream(i_index = i, j_index = j, station_id = station.id)
+        plot_total_precip_for_upstream(i_index = i, j_index = j, station_id = station.id)
+
+
+
+        #plt.ylabel("${\\rm m^3/s}$")
+        west_east = 'W' if station.longitude < 0 else 'E'
+        north_south = 'N' if station.latitude > 0 else 'S'
+        title_data = (station.id, np.abs(station.longitude), west_east,
+                                  np.abs(station.latitude), north_south)
+        plt.title('%s: (%3.1f%s, %3.1f%s)' % title_data, override)
         ax = plt.gca()
         ax.xaxis.set_major_locator(
             mpl.dates.MonthLocator(bymonth = range(2,13,2))
@@ -479,19 +648,33 @@ def main():
 
 
     lines = (line1, line2)
-    plt.figlegend(lines, (label1, label2), 'upper center')
-    plt.savefig('performance_error.png')
+
+    fig.legend(lines, (label1, label2), 'upper center')
+    fig.text(0.05, 0.5, 'STREAMFLOW (${\\rm m^3/s}$)',
+                  rotation=90,
+                  ha = 'center', va = 'center'
+                  )
+
+    fig.savefig('performance_error.pdf')
+
+
 
     
    # assert len(selected_dates_with_gw[0]) == len(selected_station_dates[0])
 
-    calculate_skills(selected_stations,
-                    stamp_dates, selected_station_values,
-                    selected_model_values,
-                    grid_drainages,
-                    grid_lons, grid_lats)
-    plot_selected_stations(selected_stations)
-    plot_drainage_scatter(selected_stations, grid_drainages)
+    do_skill_calculation = False
+    if do_skill_calculation:
+        calculate_skills(selected_stations,
+                        stamp_dates, selected_station_values,
+                        selected_model_values,
+                        grid_drainages,
+                        grid_lons, grid_lats)
+
+
+    do_plot_selected_stations = False
+    if do_plot_selected_stations:
+        plot_selected_stations(selected_stations)
+    #plot_drainage_scatter(selected_stations, grid_drainages)
 
 
 
@@ -524,6 +707,9 @@ def plot_selected_stations(selected_stations):
         if station.id in ['081007']:
             xtext = 0.97 * x
 
+        if station.id in ['093801']:
+            ytext = 0.97 * y
+
 
         plt.annotate(station.id, xy = (x, y), xytext = (xtext, ytext),
                      bbox = dict(facecolor = 'white')
@@ -533,7 +719,7 @@ def plot_selected_stations(selected_stations):
 
     plot_utils.zoom_to_qc(plt)
 
-    plt.savefig('selected_stations.png',  bbox_inches='tight')
+    plt.savefig('selected_stations.pdf',  bbox_inches='tight')
 
 
     plt.figure()
