@@ -31,9 +31,9 @@ import matplotlib as mpl
 import shape.basin_boundaries as bb
 
 def getBasinMask(basinName = 'RDO'):
-    '''
+    """
     returns a mask for a given basin
-    '''
+    """
     path = 'data/infocell/amno180x172_basins.nc'
     ds = Dataset(path)
     mask = ds.variables[basinName][:]
@@ -45,7 +45,7 @@ def get_domain_mask(path = 'data/infocell/amno180x172_basins.nc'):
     ds = Dataset(path)
     result = None
     for v in ds.variables.values():
-        if result == None:
+        if result is None:
             result = v[:]
         else:
             result += v[:]
@@ -58,14 +58,16 @@ def getSelectedBasinNames():
 
 
 
-def getTemporalMeanCCCDataForMask(mask = None, path_to_ccc = 'data/ccc_data/aex/aex_p1sno',
-                    startDate = None, endDate = None, months = []):
+def getTemporalMeanCCCDataForMask(mask=None, path_to_ccc='data/ccc_data/aex/aex_p1sno',
+                                  startDate=None, endDate=None,
+                                  months=None):
 
-    '''
+    """
     months - is a list of month indices (i.e. 1,2,3,4 .. 12), over which
     the mean is calculated
     returns
-    '''
+    """
+    if not months: months = []
 
     dt = timedelta(hours = 6)
     dates = []
@@ -75,13 +77,13 @@ def getTemporalMeanCCCDataForMask(mask = None, path_to_ccc = 'data/ccc_data/aex/
         cccObj = champ_ccc(fPath)
         theDate = datetime.strptime( fName.split('_')[-1][:-4], '%Y%m')
 
-        if endDate != None and startDate != None:
+        if endDate is not None and startDate is not None:
             if endDate < theDate or theDate < startDate:
                 continue
 
         dataStore = cccObj.charge_champs()
         for field in dataStore:
-            if startDate != None and endDate != None:
+            if startDate is not None and endDate is not None:
                 if startDate > theDate:
                     continue
                 if endDate < theDate:
@@ -100,12 +102,114 @@ def getTemporalMeanCCCDataForMask(mask = None, path_to_ccc = 'data/ccc_data/aex/
 
 
 
+class DateAndPath:
+    """
+    Holds a start date and path corresponding to a ccc file
+    """
+    def __init__(self, date = None, path = ""):
+        self.date = date
+        self.path = path
+
+
+def getMonthlyNormalsAveragedOverMask(mask = None, path_to_ccc = 'data/ccc_data/aex/aex_p1sno',
+                    startDate = None, endDate = None):
+    """
+    returns dates of the stamp year and normals corresponding to the dates
+    """
+
+    times, data = getSpatialIntegralCCCDataForMask(mask = mask, path_to_ccc = path_to_ccc)
+
+    monthly_normals = np.zeros((12,))
+    for t, x in zip(times, data):
+        monthly_normals[t.month - 1] += x
+
+    dt = times[-1] - times[0]
+    n_years = float(dt.days // 365)
+    return monthly_normals / n_years
+    pass
+
+
+def getDailyNormalsAveragedOverMask(mask = None, path_to_ccc = 'data/ccc_data/aex/aex_p1sno',
+                    startDate = None, endDate = None):
+    """
+    returns dates of the stamp year and normals corresponding to the dates
+    """
+
+    times, data = getSpatialIntegralCCCDataForMask(mask = mask, path_to_ccc = path_to_ccc)
+
+    year = 2001
+    normals = {}
+    for t, x in zip(times, data):
+        #skip the 29th of february
+        if t.month == 2 and t.day == 29: continue
+        d = datetime(year, t.month, t.day, 0, 0, 0)
+        if normals.has_key(d):
+            normals[d] += [x]
+        else:
+            normals[d] = [x]
+    
+    ds = normals.keys()
+    ds.sort()
+    return ds, [np.mean(normals[d]) for d in ds]
+
+    pass
+
+def getSpatialIntegralCCCDataForMask(mask = None, path_to_ccc = 'data/ccc_data/aex/aex_p1sno',
+                    startDate = None, endDate = None):
+
+    """
+    returns 2 lists of the same dimensions one contains dates and the other,
+    integral values over the mask corresponding to the date
+    """
+
+    dt = timedelta(hours = 6)
+    dates = []
+    result = []
+
+
+
+    monthlyFileNames = os.listdir(path_to_ccc)
+    filePaths = map(lambda x: os.path.join(path_to_ccc, x), monthlyFileNames)
+    the_func = lambda x: datetime.strptime( x.split('_')[-1][:-4], '%Y%m')
+    monthlyDates = map(the_func, monthlyFileNames) # get dates for months
+
+    the_zip = zip(monthlyDates, filePaths)
+    dps = [DateAndPath(date = the_date, path = the_path) for the_date, the_path in the_zip]
+    dps.sort(key =  lambda x: x.date)
+
+    for dp in dps:
+        fPath = dp.path
+        cccObj = champ_ccc(fPath)
+        theDate = dp.date
+
+        if endDate is not None and startDate is not None:
+            if endDate < theDate or theDate < startDate:
+                continue
+
+        dataStore = cccObj.charge_champs()
+        for field in dataStore:
+            if startDate is not None and endDate is not None:
+                if startDate > theDate:
+                    continue
+                if endDate < theDate:
+                    break
+
+
+            fieldData = field['field']
+            dates.append(theDate)
+            result.append(np.sum(fieldData[mask == 1]))
+            theDate += dt
+
+    return dates, np.array(result) * dt.seconds
+    pass
+
+
 def getSpatialMeanCCCDataForMask(mask = None, path_to_ccc = 'data/ccc_data/aex/aex_p1sno',
                     startDate = None, endDate = None):
 
-    '''
+    """
     returns a map {date => mean value over a mask}
-    '''
+    """
 
     dt = timedelta(hours = 6)
     dates = []
@@ -115,13 +219,13 @@ def getSpatialMeanCCCDataForMask(mask = None, path_to_ccc = 'data/ccc_data/aex/a
         cccObj = champ_ccc(fPath)
         theDate = datetime.strptime( fName.split('_')[-1][:-4], '%Y%m')
 
-        if endDate != None and startDate != None:
+        if endDate is not None and startDate is not None:
             if endDate < theDate or theDate < startDate:
                 continue
 
         dataStore = cccObj.charge_champs()
         for field in dataStore:
-            if startDate != None and endDate != None:
+            if startDate is not None and endDate is not None:
                 if startDate > theDate:
                     continue
                 if endDate < theDate:
@@ -147,9 +251,9 @@ def test():
 
 
 def toStampYear(theDate, stamp_year = 2000):
-    '''
+    """
     stamp_year should be aleap year, if not problems may arise for 29/02
-    '''
+    """
     try:
         return datetime(stamp_year, theDate.month, theDate.day, theDate.hour, theDate.minute)
     except ValueError, e:
@@ -169,9 +273,9 @@ def compare_means(basinName = 'RDO',
 
 
 def compare_spatial_means_over_mask(mask = None, label = ''):
-    '''
+    """
     timeseries not changed, averaging over the points where mask == 1
-    '''
+    """
     start = datetime(1980,01,01,00)
     end = datetime(1996, 12, 31,00)
 
@@ -263,6 +367,79 @@ def compare_daily_normals_mean_over_mask(mask = None, start = None, end = None, 
     plt.savefig(label + '_swe.pdf', bbox_inches = 'tight')
 
 
+def compare_daily_normals_integral_over_mask(mask = None, start = None, end = None, label = ''):
+    """
+
+    """
+    lons = polar_stereographic.lons
+    lats = polar_stereographic.lats
+
+    lons_selected = lons[ mask == 1 ]
+    lats_selected = lats[ mask == 1 ]
+
+    points = [GeoPoint(longitude = lon, latitude = lat) for lon, lat in zip(lons_selected, lats_selected)]
+
+    sweObs = SweHolder()
+    obsData = sweObs.getSpatialIntegralFromNetcdfForPoints(points, startDate = start, endDate = end)
+    print 'finished reading observations'
+    modelData = getSpatialIntegralCCCDataForMask(mask = mask, path_to_ccc = 'data/ccc_data/aex/aex_p1sno',
+                                                 startDate = start, endDate = end)
+    print 'finished reading model data'
+    print 'finished reading input mean timeseries'
+
+    stamp_year = 2000
+    obsStamp = map(lambda x: toStampYear(x, stamp_year = stamp_year), obsData[0])
+    modelStamp = map(lambda x: toStampYear(x, stamp_year = stamp_year), modelData[0])
+    print 'calculated stamp dates'
+
+    ##calculate mean for a day of year
+    obsDict = {}
+    for stampDate, value in zip(obsStamp, obsData[1]):
+        if not obsDict.has_key(stampDate):
+            obsDict[stampDate] = []
+        obsDict[stampDate].append(value)
+
+    for key, theList in obsDict.iteritems():
+        obsDict[key] = np.mean(theList)
+
+    obsDates = sorted(obsDict)
+    obsMeanValues = [obsDict[d] for d in obsDates]
+
+
+
+    #do the same thing as for obs for the model data
+    modelDict = {}
+    for stampDate, value in zip(modelStamp, modelData[1]):
+        if not modelDict.has_key(stampDate):
+            modelDict[stampDate] = []
+        modelDict[stampDate].append(value)
+
+
+    for key, theList in modelDict.iteritems():
+        modelDict[key] = np.mean(theList)
+
+    modelDates = sorted(modelDict)
+    modelMeanValues = [modelDict[d] for d in modelDates]
+
+    print 'Calculated mean for day of year and over selected points'
+
+
+    plt.figure(figsize = (8, 6), dpi = 80)
+    plt.title('SWE {0}'.format(label))
+    plt.plot(obsDates, obsMeanValues, label = 'Obs.', color = 'red', lw = 3)
+    plt.plot(modelDates, modelMeanValues, label = 'Model', color = 'blue', lw = 3)
+    plt.ylabel('mm')
+
+    ax = plt.gca()
+    ax.xaxis.set_major_formatter(mpl.dates.DateFormatter('%b'))
+    ax.xaxis.set_major_locator(
+        mpl.dates.MonthLocator(bymonth = range(2,13,2))
+    )
+    plt.legend()
+    plt.savefig(label + '_swe.pdf', bbox_inches = 'tight')
+
+
+
 def compare(basinName = 'RDO'):
     mask = getBasinMask(basinName)
     compare_spatial_means_over_mask(mask = mask)
@@ -279,9 +456,9 @@ def getBasinNames():
 
 
 def compare_swe_2d():
-    '''
+    """
     Compare seasonal mean
-    '''
+    """
     start = datetime(1980,01,01,00)
     end = datetime(1996, 12, 31,00)
     months = [2,3,4]
