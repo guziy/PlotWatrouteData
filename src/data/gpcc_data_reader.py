@@ -12,11 +12,14 @@ class GPCCData:
         self.lons = []
         self.lats = []
         self._parse_data()
+        self.resolution = None
 
         pass
 
     def _parse_data(self, path = 'data/gpcc/RASTER_DATA/gpcc_precipitation_normals_rr_version_2010_0_50_degree',
                           resolution = 0.5):
+        self.resolution = resolution
+
         f = open(path)
         lines = f.readlines()
         iStart = int(lines[0].split()[0])
@@ -40,19 +43,61 @@ class GPCCData:
             lon += resolution
         print 'lat, lon = ', lat, lon
 
-
+        #assuming that the domain is rectangular
+        self.lowerLeftLon = np.min(self.lons)
+        self.lowerLeftLat = np.min(self.lats)
+        self.upperRightLon = np.max(self.lons)
+        self.upperRightLat = np.max(self.lats)
 
         self.yearlyData = np.array(self.yearlyData)
-        nx = (lonEnd - lonStart) / resolution
-        ny = -(latEnd - latStart) / resolution
-        the_shape = (nx, ny)
-        d = np.reshape(self.yearlyData, the_shape, order = 'F')
-        x = np.reshape(np.array(self.lons), the_shape, order = 'F')
-        y = np.reshape(np.array(self.lats), the_shape, order = 'F')
-        print the_shape
-        f.close()
+        self.monthlyData = np.array(self.monthlyData)
 
+        self.lons = np.array(self.lons)
+        self.lats = np.array(self.lats)
+        f.close()
         pass
+
+    def _calculate_distances(self, lon, lat):
+        return map(lambda x: (lon - x[0]) ** 2 + (lat - x[1]) ** 2, zip(self.lons, self.lats))
+
+    def get_monthly_precipitations_for_point(self, lon, lat):
+        """
+        select monthly means for the given point,
+        used to compare 2 points
+        """
+        distances = self._calculate_distances(lon, lat)
+        closest = distances == np.min(distances)
+        return self.monthlyData[closest][0]
+
+    def get_monthly_mean_over_points(self, the_lons, the_lats):
+        """
+        given the list of longitudes and latitudes, get spatial mean of monthly
+        normals over the given points
+        """
+        prec_for_all = []
+        for x, y in zip(the_lons, the_lats):
+            prec1 = self.get_monthly_precipitations_for_point(x, y)
+            prec_for_all.append(prec1)
+
+        #get mean over the points
+        return np.mean(prec_for_all, axis = 0)
+        pass
+
+    def get_integral_over_points_of_monthly_means(self, the_lons, the_lats):
+        """
+        given the list of longitudes and latitudes, get spatial mean of monthly
+        normals over the given points
+        """
+        prec_for_all = []
+        for x, y in zip(the_lons, the_lats):
+            prec1 = self.get_monthly_precipitations_for_point(x, y)
+            prec_for_all.append(prec1)
+
+        #get sum over the points
+        return np.sum(prec_for_all, axis = 0)
+        pass
+
+
 
     def calculate_yearly_precip_for_region(self, lon_min, lon_max, lat_min, lat_max):
         result = 0
@@ -101,7 +146,7 @@ class GPCCData:
         print dir(feature)
         print dir(layer)
         print 'shape extent: ', layer.GetExtent()
-        print 'spatial ref:', layer.GetSpatialRef(), layer.Reference()
+        print 'spatial ref: ', layer.GetSpatialRef(), layer.Reference()
         print layer.GetFIDColumn()
 
 
@@ -156,5 +201,7 @@ import application_properties
 if __name__ == "__main__":
     application_properties.set_current_directory()
     gpcc = GPCCData()
-    gpcc.calculate_yearly_precip_for_shape()
+#    gpcc.calculate_yearly_precip_for_shape()
+    gpcc.get_monthly_precipitations_for_point(-75.8, 47.1)
+    gpcc.get_monthly_precipitations_for_point(-78, 47)
     print "Hello World"

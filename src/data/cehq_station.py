@@ -79,14 +79,14 @@ class Station:
         previous_date = None
         for the_date, value in zip(self.dates, self.values):
             if the_date.year > year:
-                if previous_date != None and the_date - previous_date <= data_step:
+                if previous_date is not None and the_date - previous_date <= data_step:
                     return result
                 else:
                     return {}
             elif the_date.year < year:
                 continue
             else:
-                if previous_date != None:
+                if previous_date is not None:
                     if the_date - previous_date > data_step:
                         return {}
 
@@ -187,9 +187,9 @@ class Station:
 
 
     def _get_degrees(self, group):
-        '''
+        """
         Converts group (d,m,s) -> degrees
-        '''
+        """
         d, m, s = group
         koef = 1.0 / 60.0
         sign = 1.0 if d >= 0 else -1.0

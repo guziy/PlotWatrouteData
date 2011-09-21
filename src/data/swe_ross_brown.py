@@ -29,10 +29,11 @@ class SweHolder:
         self.file_name_format = '%Y%m%d%H'
 
         self.all_dates = []
-        self._initDates()
+
         self.conversionCoef = 0.1 #to transorm to mm of water
 
         self.pathToNetCDF = 'data/swe_ross_brown/swe.nc'
+        self._initDates()
 
 
     def get2DLonsAndLats(self):
@@ -57,9 +58,11 @@ class SweHolder:
 
 
     def _initDates(self):
-        for fName in os.listdir(self.root_path):
-            self.all_dates.append(datetime.strptime(fName, self.file_name_format))
-        self.all_dates.sort()
+        ds = Dataset(self.pathToNetCDF)
+        times = ds.variables['time']
+        times = num2date(times[:], units = times.units)
+        self.all_dates = times
+
 
     def getStartDate(self):
         return self.all_dates[0]
@@ -97,11 +100,47 @@ class SweHolder:
 
 
 
-    def getSpatialMeanDataFromNetCDFforPoints(self, geopointList = [], startDate = None,
-                                             endDate = None, months = []):
+
+    def getSpatialIntegralFromNetcdfForPoints(self, geopointList=None, startDate=None, endDate=None, months=None):
         """
         months - months of year over which the average is taken
         """
+        if not months: months = []
+        if not geopointList: geopointList = []
+        i_indices = []
+        j_indices = []
+        for point in geopointList:
+            dlon = point.longitude - self.lowerLeft.longitude
+            dlat = point.latitude - self.lowerLeft.latitude
+            i = int(dlon / self.step)
+            j = int(dlat / self.step)
+            i_indices.append(i)
+            j_indices.append(j)
+
+        ds = Dataset(self.pathToNetCDF)
+
+        times = ds.variables['time']
+        times = num2date(times[:], units = times.units)
+
+        data = ds.variables['SWE']
+        if not len(months):
+            query = (times >= startDate) & (times <= endDate)
+            return times[query][:], np.sum(data[query, i_indices, j_indices], axis = 1)
+        else:
+            query = (times >= startDate) & (times <= endDate)
+            for i in xrange(len(times)):
+                if not query[i]: continue
+                if times[i].month not in months:
+                    query[i] = False
+            return times[query][:], np.sum(data[query, i_indices, j_indices], axis = 1)
+
+
+    def getSpatialMeanDataFromNetCDFforPoints(self, geopointList=None, startDate=None, endDate=None, months=None):
+        """
+        months - months of year over which the average is taken
+        """
+        if not months: months = []
+        if not geopointList: geopointList = []
         i_indices = []
         j_indices = []
         for point in geopointList:

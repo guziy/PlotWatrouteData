@@ -7,6 +7,7 @@ import application_properties
 from shapely.geometry import Point
 
 class RivDisStationMeta():
+
     def __init__(self, name = None, country = None, point = None):
         self.country = country
         self.name = name
@@ -25,6 +26,12 @@ class RivDisStationMeta():
 
 class Country():
     def __init__(self, name = ''):
+        """
+        represent a country
+        properties:
+        name = country name
+        stations = list of stations in the country
+        """
         self.name = name
         self.stations = []
 
@@ -56,7 +63,7 @@ class RivDisStationManager():
     def compare_accumulation_areas(self, areas):
         for s in self.getStations():
             theCell = s.corresponding_cell
-            if theCell == None: continue
+            if theCell is None: continue
             print s.drainage_area, theCell.drainage_area, theCell.coords(), areas[theCell.coords()], s.name
 
     def parseStationMetaData(self, path = 'data/rivdis/lat_long_station_africa.csv'):
@@ -85,7 +92,7 @@ class RivDisStationManager():
         f.write('Station;Longitude;Latitude;Country; Basin;model_i;model_j;stationCA;cellCA\n')
         for country in self.countries:
             for theStation in country.stations:
-                if theStation.basin == None:
+                if theStation.basin is None:
                     print 'no basin for the station {0}'.format(theStation.name)
                     print theStation.point.x, theStation.point.y
                     print theStation.point.wkt
