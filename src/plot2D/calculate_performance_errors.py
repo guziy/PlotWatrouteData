@@ -361,14 +361,18 @@ def get_mask_for_station(directions_file = 'data/hydrosheds/directions_for_strea
 
 
 def plot_total_precip_for_upstream(directions_file = 'data/hydrosheds/directions_for_streamflow9.nc',
-                          i_index = -1, j_index = -1, station_id = ''):
+                          i_index = -1, j_index = -1, station_id = '', subplot_count = -1,
+                          start_date = None, end_date = None):
 
     """
     Plot total precipitation integrated over upstream cells for model(ccc file) and observation(gpcc)
     """
     the_mask = get_mask_for_station(directions_file=directions_file, i_index=i_index, j_index=j_index)
 
-    compare_precip.compare_precip(mask = the_mask, label = station_id)
+    compare_precip.compare_precip(mask = the_mask, label = station_id,
+                                  subplot_count=subplot_count,
+                                  start_date = start_date, end_date=end_date
+                                  )
 
 
     pass
@@ -563,6 +567,16 @@ def main():
         #    continue
 
 
+        plot_total_precip_for_upstream(i_index = i, j_index = j, station_id = station.id,
+                                        subplot_count = current_subplot,
+                                        start_date = datetime(1980,01,01,00),
+                                        end_date = datetime(1996,12,31,00),
+                                        )
+        #tmp
+#        current_subplot += 1
+#        selected_stations.append(station)
+#        continue
+
 
         ##Calculate means for each day of year,
         ##as a stamp year we use 2001, ignoring the leap year
@@ -622,11 +636,11 @@ def main():
 
         selected_station_values.append(mean_data_station)
         selected_model_values.append(mean_data_model)
-        selected_stations.append(station)
+
 
 
 #        plot_swe_for_upstream(i_index = i, j_index = j, station_id = station.id)
-        plot_total_precip_for_upstream(i_index = i, j_index = j, station_id = station.id)
+
 
 
 
