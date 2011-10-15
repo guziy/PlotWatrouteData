@@ -1,3 +1,5 @@
+from matplotlib.axes import Axes
+
 __author__="huziy"
 __date__ ="$Aug 31, 2011 3:12:13 PM$"
 
@@ -63,8 +65,12 @@ def get_member_to_path_mapping(path_to_folder = 'data/streamflows/hydrosheds_eul
 
 
 def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamflows/hydrosheds_euler9',
-                                                     months = None, subplot_dims = None, subplot_count = 1, label = ""):
+                                                     months = None, subplot_dims = None,
+                                                     subplot_count = 1, label = ""):
 
+    """
+
+    """
     if months is None:
         print "please specify months"
         return
@@ -127,7 +133,8 @@ def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamf
     basemap.pcolormesh(xs, ys, to_plot, cmap = my_cm.get_red_blue_colormap(ncolors = 6),
                        vmax = 150, vmin = -150)
     basemap.drawcoastlines()
-    plt.colorbar(ticks = LinearLocator(numticks = 7), format = '%d')
+    cb = plt.colorbar(ticks = LinearLocator(numticks = 7), format = '%d')
+    put_upper_limited_label(cb)
     bb.plot_basin_boundaries_from_shape(basemap, plotter = plt, linewidth = 1, edge_color = 'k')
     plt.xlim(np.min(selected_x) - marginx, np.max(selected_x) + marginx)
     plt.ylim(np.min(selected_y) - marginy, np.max(selected_y) + marginy)
@@ -142,21 +149,31 @@ def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamf
 
     basemap.pcolormesh(xs, ys, to_plot, cmap = mpl.cm.get_cmap('jet', 5), vmax = 0.2)
     basemap.drawcoastlines()
-    plt.colorbar(ticks = LinearLocator(numticks = 6), format = '%.2f')
+    cb = plt.colorbar(ticks = LinearLocator(numticks = 6), format = '%.2f')
+    put_upper_limited_label(cb)
+
     bb.plot_basin_boundaries_from_shape(basemap, plotter = plt, linewidth = 1, edge_color = 'k')
     plt.xlim(np.min(selected_x) - marginx, np.max(selected_x) + marginx)
     plt.ylim(np.min(selected_y) - marginy, np.max(selected_y) + marginy)
-    
-
-
-
     print current_data.shape
-    
     pass
+
+def put_upper_limited_label(the_colorbar):
+    """
+    the_colorbar - colorbar object
+    appends the \geq symbol to the upper limit label
+    """
+    ticks = the_colorbar.ax.get_yticklabels()
+    ticks = map(lambda x: x.get_text(), ticks)
+    ticks[-1] = "$\\geq$ {0}".format(ticks[-1])
+    the_colorbar.ax.set_yticklabels(ticks)
+
 
 
 def calculate_mean_change_and_plot_for_all_seasons():
-
+    """
+    calculate changes in seasonal means
+    """
     seasons = ["DJF", "MAM", "JJA", "SON"]
     months = [(12,1,2), (3,4,5), (6,7,8), (9,10,11)]
     folder_path = 'data/streamflows/hydrosheds_euler9'

@@ -301,7 +301,7 @@ def test_get_lon_lat():
 
 
 
-from plot2D.plot_utils import draw_meridians_and_parallels
+from util.plot_utils import draw_meridians_and_parallels
 
 
 def get_indices_from_lon_lat(longitude, latitude,

@@ -2,7 +2,7 @@ __author__="huziy"
 __date__ ="$18 nov. 2010 10:49:18$"
 
 
-from plot2D.plot_utils import draw_meridians_and_parallels
+from util.plot_utils import draw_meridians_and_parallels
 import numpy as np
 from numpy import ma
 

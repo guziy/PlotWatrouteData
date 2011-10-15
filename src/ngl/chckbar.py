@@ -90,7 +90,7 @@ lats = polar_stereographic.lats
 #cfile = Nio.open_file(os.path.join(dirc,"streamflows/fdirv2_RDOb_VandF/aex_discharge_1970_01_01_00_00.nc"))
 
 
-cfile = NetCDFFile("data/streamflows/fdirv2_RDOb_VandF/aex_discharge_1970_01_01_00_00.nc")
+cfile = NetCDFFile("data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc")
 
 #
 #  Read the lat/lon/ele/depth arrays to numpy.arrays.
@@ -101,13 +101,14 @@ cfile = NetCDFFile("data/streamflows/fdirv2_RDOb_VandF/aex_discharge_1970_01_01_
 #depth = cfile.variables["depth"][:]
 
 discharge = cfile.variables["water_discharge"][:]
+discharge = np.mean(discharge, axis = 0 ) #temporal mean
 x_index = cfile.variables["x-index"][:]
 y_index = cfile.variables["y-index"][:]
 
-to_plot = np.zeros((n_cols, n_rows))
-to_plot[:, :] = 0
+to_plot = np.ma.masked_all((n_cols, n_rows))
+
 for d, i, j in zip(discharge, x_index, y_index):
-    to_plot[i, j] = d[0]
+    to_plot[i, j] = d
 
 
 
@@ -116,7 +117,7 @@ for d, i, j in zip(discharge, x_index, y_index):
 #
 rlist            = Ngl.Resources()
 rlist.wkColorMap = "rainbow+gray"
-wks_type = "pdf"
+wks_type = "x11"
 wks = Ngl.open_wks(wks_type,"chkbay",rlist)
 
 #
@@ -147,7 +148,8 @@ contour = Ngl.contour(wks,to_plot,resources)
 #
 #  The next set of resources will apply to the map plot.
 #
-resources.mpProjection = "CylindricalEquidistant"
+resources.mpProjection = "Stereographic"
+
 
 #
 # Once the high resolution coastline data files have been
@@ -161,10 +163,18 @@ resources.mpDataBaseVersion = "MediumRes"
 # Retrieve the actual lat/lon end points of the scalar array so
 # we know where to overlay on map.
 #
-xs = Ngl.get_float(contour.sffield,"sfXCActualStartF")
-xe = Ngl.get_float(contour.sffield,"sfXCActualEndF")
-ys = Ngl.get_float(contour.sffield,"sfYCActualStartF")
-ye = Ngl.get_float(contour.sffield,"sfYCActualEndF")
+#xs = Ngl.get_float(contour.sffield,"sfXCActualStartF")
+#xe = Ngl.get_float(contour.sffield,"sfXCActualEndF")
+#ys = Ngl.get_float(contour.sffield,"sfYCActualStartF")
+#ye = Ngl.get_float(contour.sffield,"sfYCActualEndF")
+
+actual_lons = lons[~to_plot.mask]
+actual_lats = lats[~to_plot.mask]
+xs = np.min(actual_lons)
+xe = np.max(actual_lons)
+ys = np.min(actual_lats)
+ye = np.max(actual_lats)
+
 
 resources.mpLimitMode           = "LatLon"
 resources.mpMinLonF             = xs     # -77.3244

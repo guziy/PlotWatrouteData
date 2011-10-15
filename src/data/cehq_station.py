@@ -201,7 +201,7 @@ class Station:
         return self.id.__hash__()
 
     def __eq__(self, other):
-        if other == None:
+        if other is None:
             return False
 
         return self.id == other.id
@@ -215,6 +215,19 @@ def print_info_of(station_ids):
         s.parse_from_cehq(path)
         print s.info()
     
+
+def read_station_data(folder = 'data/cehq_measure_data'):
+    stations = []
+    for file in os.listdir(folder):
+        if not '.txt' in file:
+            continue
+        path = os.path.join(folder, file)
+        s = Station()
+        s.parse_from_cehq(path)
+        stations.append(s)
+    return stations
+
+
 
 if __name__ == "__main__":
     application_properties.set_current_directory()

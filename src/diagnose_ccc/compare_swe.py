@@ -13,6 +13,8 @@ from datetime import timedelta
 from datetime import datetime
 import numpy as np
 
+from readers import read_infocell
+
 import os
 
 from plot2D.map_parameters import polar_stereographic
@@ -29,6 +31,9 @@ import util.plot_utils as plot_utils
 
 import matplotlib as mpl
 import shape.basin_boundaries as bb
+
+from data import cehq_station
+from plot2D import calculate_performance_errors as cpe
 
 def getBasinMask(basinName = 'RDO'):
     """
@@ -117,7 +122,8 @@ def getMonthlyNormalsAveragedOverMask(mask = None, path_to_ccc = 'data/ccc_data/
     returns dates of the stamp year and normals corresponding to the dates
     """
 
-    times, data = getSpatialIntegralCCCDataForMask(mask = mask, path_to_ccc = path_to_ccc)
+    times, data = getSpatialIntegralCCCDataForMask(mask = mask, path_to_ccc = path_to_ccc,
+                                                   startDate= startDate, endDate=endDate)
 
     monthly_normals = np.zeros((12,))
     for t, x in zip(times, data):
@@ -367,7 +373,12 @@ def compare_daily_normals_mean_over_mask(mask = None, start = None, end = None, 
     plt.savefig(label + '_swe.pdf', bbox_inches = 'tight')
 
 
-def compare_daily_normals_integral_over_mask(mask = None, start = None, end = None, label = ''):
+
+
+swe_fig = None
+def compare_daily_normals_integral_over_mask(mask = None, start = None, end = None, label = '',
+                                             subplot_count = None, subplot_total = 10
+                                             ):
     """
 
     """
@@ -376,6 +387,15 @@ def compare_daily_normals_integral_over_mask(mask = None, start = None, end = No
 
     lons_selected = lons[ mask == 1 ]
     lats_selected = lats[ mask == 1 ]
+
+    global swe_fig
+
+    if subplot_count == 1:
+        swe_fig = plt.figure()
+        plot_utils.apply_plot_params(font_size=25, width_pt=900, aspect_ratio=2.5)
+        swe_fig.subplots_adjust(hspace = 0.6, wspace = 0.2, top = 0.9)
+
+
 
     points = [GeoPoint(longitude = lon, latitude = lat) for lon, lat in zip(lons_selected, lats_selected)]
 
@@ -424,19 +444,29 @@ def compare_daily_normals_integral_over_mask(mask = None, start = None, end = No
     print 'Calculated mean for day of year and over selected points'
 
 
-    plt.figure(figsize = (8, 6), dpi = 80)
-    plt.title('SWE {0}'.format(label))
-    plt.plot(obsDates, obsMeanValues, label = 'Obs.', color = 'red', lw = 3)
-    plt.plot(modelDates, modelMeanValues, label = 'Model', color = 'blue', lw = 3)
-    plt.ylabel('mm')
+    plt.title('Upstream of {0}'.format(label))
+    line1 = plt.plot(modelDates, modelMeanValues, color = 'blue', lw = 3)
+    line2 = plt.plot(obsDates, obsMeanValues, color = 'red', lw = 3)
+
+    #plt.ylabel('mm')
 
     ax = plt.gca()
     ax.xaxis.set_major_formatter(mpl.dates.DateFormatter('%b'))
     ax.xaxis.set_major_locator(
         mpl.dates.MonthLocator(bymonth = range(2,13,2))
     )
-    plt.legend()
-    plt.savefig(label + '_swe.pdf', bbox_inches = 'tight')
+
+
+    if subplot_count == subplot_total:
+         lines = (line1, line2)
+         labels = ("CRCM4", "CRU")
+         swe_fig.legend(lines, labels, 'upper center')
+         swe_fig.text(0.05, 0.5, 'SWE (mm)',
+                       rotation=90,
+                       ha = 'center', va = 'center'
+                        )
+         swe_fig.savefig("swe.pdf")
+
 
 
 
@@ -461,11 +491,12 @@ def compare_swe_2d():
     """
     start = datetime(1980,01,01,00)
     end = datetime(1996, 12, 31,00)
-    months = [2,3,4]
+    months = [12,1,2]
     #calculate mean for ccc data accounting for the mask
     domain_mask = get_domain_mask()
     cccData = getTemporalMeanCCCDataForMask(domain_mask,
-                                            startDate = start, endDate = end, months = months)
+                                            startDate = start,
+                                            endDate = end, months = months)
     lon_selected = polar_stereographic.lons[domain_mask == 1]
     lat_selected = polar_stereographic.lats[domain_mask == 1]
 
@@ -488,9 +519,9 @@ def compare_swe_2d():
     basemap = polar_stereographic.basemap
 
     plot_utils.apply_plot_params()
-    basemap.pcolormesh(xs, ys, to_plot, cmap = mpl.cm.get_cmap('jet', 7))
+    basemap.pcolormesh(xs, ys, to_plot, cmap = mpl.cm.get_cmap('jet', 9), vmin = -60, vmax = 120)
     basemap.drawcoastlines()
-    plt.colorbar(ticks = LinearLocator(numticks = 8), format = '%.1f')
+    plt.colorbar(ticks = LinearLocator(numticks = 10), format = '%.1f')
     plt.title('Snow Water Equivalent (%) \n $(S_{\\rm CRCM4} - S_{\\rm obs.})/S_{\\rm obs.}\\cdot100\%$\n')
 
     #zoom to domain
@@ -503,6 +534,26 @@ def compare_swe_2d():
     plt.ylim(np.min(selected_y) - marginy, np.max(selected_y) + marginy)
 
     bb.plot_basin_boundaries_from_shape(basemap, plotter = plt, linewidth = 2, edge_color = 'k')
+
+
+
+    ##overlay flow directions
+    cells  = cpe.get_connected_cells('data/hydrosheds/directions_for_streamflow9.nc')
+
+    read_infocell.plot_directions(cells, basemap = basemap, domain_mask = get_domain_mask())
+
+
+    selected_stations = [
+            104001, 103715, 93806, 93801,
+            92715, 81006, 61502, 80718,
+            40830, 42607
+    ]
+    selected_ids = map(lambda x: "%06d" % x, selected_stations)
+    print selected_ids
+
+    cpe.plot_station_positions(id_list=selected_ids, use_warpimage=False,
+                               save_to_file=False, the_basemap=basemap)
+
     plt.savefig('swe_djf_validation.pdf', bbox_inches = 'tight')
 
 

@@ -31,7 +31,7 @@ class YearPositionObject():
         return self.keys.__hash__()
 
     def __eq__(self, other):
-        if other == None:
+        if other is None:
             return False
 
         for the_key, other_key in zip(self.keys, other.keys):
@@ -78,7 +78,7 @@ class OccurrencesDB():
             c_file_path = os.path.join(path_to_streamflow, current_file_name_pattern % c_id)
             f_file_path = os.path.join(path_to_streamflow, future_file_name_pattern % f_id)
 
-            if self.c_times == None:
+            if self.c_times is None:
                 c.init_from_path(c_file_path)
                 f.init_from_path(f_file_path)
 
@@ -179,6 +179,9 @@ class ModelDataObject():
     ##get dates of occurences of the maxima
     #{year: date}
     def get_dates_of_annual_maxima(self, position_index):
+        """
+
+        """
         return data_select.get_period_maxima_dates(self._data[:, position_index], self.times,
                 start_month = 1, end_month = 12, event_duration = timedelta(days = 1)
         )
@@ -209,7 +212,7 @@ class ModelDataObject():
             return None
         #data time step is assumed to be constant
         #and less than the event duration
-        if self.data_time_step == None:
+        if self.data_time_step is None:
             dt1 = selected_dates[1] - selected_dates[0]
             self.data_time_step = dt1
         else:
@@ -230,7 +233,7 @@ class ModelDataObject():
                 break
             else:
                 the_value = np.mean(selected_values[i:i + averaging_length])
-                if the_max_value == None or the_max_value < the_value:
+                if the_max_value is None or the_max_value < the_value:
                     the_max_value = the_value
                     the_date_of_max = d
 
@@ -240,6 +243,6 @@ class ModelDataObject():
 
 
 if __name__ == "__main__":
-    print YearPositionObject(1,2,2) == YearPositionObject(1,2,3)
-    print YearPositionObject(1,2,2) == YearPositionObject(1,2,2)
+    print YearPositionObject(1,2) == YearPositionObject(1,2)
+    print YearPositionObject(1,2) == YearPositionObject(1,2)
     print "Hello World"

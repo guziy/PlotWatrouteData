@@ -24,14 +24,14 @@ import pylab
 import matplotlib as mpl
 
 import data.data_select as data_select
-import plot2D.plot_utils as plot_utils
+import util.plot_utils as plot_utils
 
 from index_object import IndexObject
 import netCDF4 as nc
 
 from data.cell import Cell
 
-import diagnose_ccc.compare_swe as compare_swe
+
 import diagnose_ccc.compare_precip as compare_precip
 
 MAXIMUM_DISTANCE_METERS = 45000.0 #m
@@ -46,17 +46,17 @@ ys = polar_stereographic.ys
 
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5.0) - 1.0) / 2.0       # Aesthetic ratio
-fig_width = 1500 * inches_per_pt          # width in inches
+fig_width = 800 * inches_per_pt          # width in inches
 fig_height = fig_width * golden_mean      # height in inches
 fig_size = [fig_width, 2 * fig_height]
 
 params = {
-        'axes.labelsize': 20,
-        'font.size': 20,
-        'text.fontsize': 20,
-        'legend.fontsize': 20,
-        'xtick.labelsize': 20,
-        'ytick.labelsize': 20,
+        'axes.labelsize': 25,
+        'font.size': 25,
+        'text.fontsize': 25,
+        'legend.fontsize': 25,
+        'xtick.labelsize': 25,
+        'ytick.labelsize': 25,
         'figure.figsize': fig_size
         }
 
@@ -337,6 +337,10 @@ def get_connected_cells(directions_path):
 
 def get_mask_for_station(directions_file = 'data/hydrosheds/directions_for_streamflow9.nc',
                           i_index = -1, j_index = -1):
+
+
+    import diagnose_ccc.compare_swe as compare_swe
+
     cells = get_connected_cells(directions_file)
 
     nx = len(cells)
@@ -388,7 +392,7 @@ def plot_swe_for_upstream(directions_file = 'data/hydrosheds/directions_for_stre
 #                                        start = datetime(1980,01,01,00),
 #                                        end = datetime(1996, 12, 31,00),
 #                                        label = station_id)
-    
+    import diagnose_ccc.compare_swe as compare_swe
     the_mask = get_mask_for_station(directions_file=directions_file, i_index=i_index, j_index=j_index)
 
     compare_swe.compare_daily_normals_integral_over_mask(the_mask,
@@ -463,17 +467,15 @@ def main():
     grid_lons = []
     grid_lats = []
 
-
-    plt.figure()
-
-
+    plot_utils.apply_plot_params(font_size=25, width_pt=1200, aspect_ratio=2)
+    fig = plt.figure()
 
     current_subplot = 1
 
     label1 = 'model'
     label2 = 'observation'
-    override = {'fontsize': 20}
-    plt.subplots_adjust(hspace = 0.35, wspace = 0.2, top = 0.9)
+    override = {'fontsize': 24}
+    fig.subplots_adjust(hspace = 0.9, wspace = 0.4, top = 0.9)
 
     
 
@@ -484,8 +486,6 @@ def main():
     #sort by latitude
     index_objects.sort( key = lambda x: x.j, reverse = True)
 
-
-    fig = plt.figure()
     for indexObj in index_objects:
         i = indexObj.i
         j = indexObj.j
@@ -566,17 +566,17 @@ def main():
         #if num_of_continuous_years < 2:
         #    continue
 
+        selected_stations.append(station)
 
-        plot_total_precip_for_upstream(i_index = i, j_index = j, station_id = station.id,
-                                        subplot_count = current_subplot,
-                                        start_date = datetime(1980,01,01,00),
-                                        end_date = datetime(1996,12,31,00),
-                                        )
-        #tmp
+#        plot_total_precip_for_upstream(i_index = i, j_index = j, station_id = station.id,
+#                                        subplot_count = current_subplot,
+#                                        start_date = datetime(1980,01,01,00),
+#                                        end_date = datetime(1996,12,31,00)
+#                                        )
+
+        #tmp (if do not need to replot streamflow)
 #        current_subplot += 1
-#        selected_stations.append(station)
 #        continue
-
 
         ##Calculate means for each day of year,
         ##as a stamp year we use 2001, ignoring the leap year
@@ -605,15 +605,15 @@ def main():
 
 
 
-        fig.add_subplot(5, 2, current_subplot)
+        ax = fig.add_subplot(5, 2, current_subplot)
         current_subplot += 1
 
 
-        line1, = plt.plot(stamp_dates, mean_data_model, linewidth = 3)
+        line1, = ax.plot(stamp_dates, mean_data_model,color = "blue", linewidth = 3)
 
         upper_model = np.max(mean_data_model)
 
-        line2, = plt.plot(stamp_dates, mean_data_station, color = 'r', linewidth = 3)
+        line2, = ax.plot(stamp_dates, mean_data_station, color = 'r', linewidth = 3)
 
         upper_station = np.max(mean_data_station)
 
@@ -628,7 +628,7 @@ def main():
         print half, upper
         print 10 * '='
 
-        plt.yticks([0, half , upper])
+        ax.set_yticks([0, half , upper])
 
         grid_drainages.append(da_2d[i, j])
         grid_lons.append(lons[i, j])
@@ -649,8 +649,8 @@ def main():
         north_south = 'N' if station.latitude > 0 else 'S'
         title_data = (station.id, np.abs(station.longitude), west_east,
                                   np.abs(station.latitude), north_south)
-        plt.title('%s: (%3.1f%s, %3.1f%s)' % title_data, override)
-        ax = plt.gca()
+        ax.set_title('%s: (%3.1f%s, %3.1f%s)' % title_data, override)
+
         ax.xaxis.set_major_locator(
             mpl.dates.MonthLocator(bymonth = range(2,13,2))
         )
@@ -691,23 +691,45 @@ def main():
     #plot_drainage_scatter(selected_stations, grid_drainages)
 
 
+def plot_station_positions(id_list = None, save_to_file = True, use_warpimage = True, the_basemap = None):
+    """
+    Plots station positions on map
+    """
+    stations = read_station_data()
+    selected_stations = []
+    for s in stations:
+        if s.id in id_list:
+            selected_stations.append(s)
+    plot_selected_stations(selected_stations, plot_ts = False, save_to_file=save_to_file,
+                           use_warpimage=use_warpimage, basemap=the_basemap)
 
-def plot_selected_stations(selected_stations):
-    plt.clf()
-    basemap = polar_stereographic.basemap
+
+def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = True,
+                           use_warpimage = True, basemap = None):
+    """
+    document me
+    """
+    if basemap is None:
+        the_basemap = polar_stereographic.basemap
+    else:
+        the_basemap = basemap
 
 #    basemap.warpimage()
-#    basemap.warpimage(image = 'http://earthobservatory.nasa.gov/Features/BlueMarble/images_bmng/2km/world.200406.3x21600x10800.jpg')
-    basemap.drawcoastlines()
+    if use_warpimage:
+        map_url = 'http://earthobservatory.nasa.gov/Features/BlueMarble/images_bmng/8km/world.topo.200407.3x5400x2700.jpg'
+        the_basemap.warpimage(image = map_url)
+        the_basemap.drawcoastlines()
 
     # draw a land-sea mask for a map background.
     # lakes=True means plot inland lakes with ocean color.
-#    basemap.drawlsmask(land_color='none', ocean_color='aqua',lakes=True)
+    #basemap.drawlsmask(land_color='none', ocean_color='aqua',lakes=True)
 
-#    basemap.drawrivers(color = 'blue')
+#   basemap.drawrivers(color = 'blue')
 #    plot_basin_boundaries_from_shape(basemap, 1)
+    the_xs = []
+    the_ys = []
     for station in selected_stations:
-        x, y = basemap(station.longitude, station.latitude)
+        x, y = the_basemap(station.longitude, station.latitude)
 
         xtext = 1.005 * x
         ytext = y
@@ -723,30 +745,47 @@ def plot_selected_stations(selected_stations):
 
         if station.id in ['093801']:
             ytext = 0.97 * y
+            xtext = 0.97 * x
 
+        the_xs.append(x)
+        the_ys.append(y)
 
         plt.annotate(station.id, xy = (x, y), xytext = (xtext, ytext),
                      bbox = dict(facecolor = 'white')
                      #arrowprops=dict(facecolor='black', shrink=0.001)
                      )
-        basemap.scatter(x,y, c = 'r', s = 100, marker='^', linewidth = 0, alpha = 1)
-
-    plot_utils.zoom_to_qc(plt)
-
-    plt.savefig('selected_stations.pdf',  bbox_inches='tight')
+    the_basemap.scatter(the_xs,the_ys, c = 'r', s = 100, marker='^', linewidth = 0.5, alpha = 1)
 
 
-    plt.figure()
-    nstations = len(selected_stations)
-    plt.subplots_adjust(hspace = 0.2)
-    for i, station in enumerate( selected_stations ):
-        plt.subplot(nstations / 2 + nstations % 2, 2, i + 1)
-        x = map(lambda date: date.year, station.dates)
-        plt.plot(x, station.values,'-o')
-        plt.title(station.id)
-        
 
-    plt.savefig('station_time_series.png')
+
+
+    if save_to_file:
+        xmin, xmax = plt.xlim()
+        ymin, ymax = plt.ylim()
+
+        xmin = (xmin + xmax) / 2.0
+        ymax = (ymin + ymax) / 2.0
+
+        ymin = 0.7 * ymin + 0.3 * ymax
+
+        plt.xlim(xmin, xmax)
+        plt.ylim(ymin, ymax)
+
+        plt.savefig('selected_stations.pdf',  bbox_inches='tight')
+
+    if plot_ts:
+        plt.figure()
+        nstations = len(selected_stations)
+        plt.subplots_adjust(hspace = 0.2)
+        for i, station in enumerate( selected_stations ):
+            plt.subplot(nstations / 2 + nstations % 2, 2, i + 1)
+            x = map(lambda date: date.year, station.dates)
+            plt.plot(x, station.values)
+            plt.title(station.id)
+
+        if save_to_file:
+            plt.savefig('station_time_series.png')
 
 
 
@@ -781,4 +820,6 @@ if __name__ == "__main__":
     print os.getcwd()
     #get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc')
     main()
+
+    #plot_station_positions(id_list=["104001", "093806", "092715", "061502", "040830", "093801"])
     print "Hello World"

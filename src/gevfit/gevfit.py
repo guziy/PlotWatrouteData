@@ -4,8 +4,10 @@ __author__="huziy"
 __date__ ="$22 oct. 2010 12:00:55$"
 
 
-#from mpl_toolkits.basemap import NetCDFFile
-from data import data_select
+from mpl_toolkits.basemap import NetCDFFile
+import data.data_select as data_select
+from math import isnan
+from math import isinf
 from plot_utils import draw_meridians_and_parallels
 
 import application_properties
@@ -26,30 +28,26 @@ from scipy.special import gamma
 
 from datetime import datetime
 import matplotlib as mpl
-import matplotlib_helpers.my_colormaps as my_cm
+#import matplotlib_helpers.my_colormaps as my_cm
 
 from datetime import timedelta
 
 import members
 import pylab
-
-import lmoments
-from plot2D.map_parameters import polar_stereographic
-import pickle
-
-from plot2D import plot_utils
-
-
-
-
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5.0) - 1.0) / 2.0       # Aesthetic ratio
 fig_width = 2000 * inches_per_pt          # width in inches
 fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, fig_height]
+fig_size = [fig_width,  fig_height]
 
 font_size = 25
 
+def zoom_to_qc():
+    ymin, ymax = plt.ylim()
+    plt.ylim(ymin + 0.05 * (ymax - ymin) , ymax * 0.25)
+
+    xmin, xmax = plt.xlim()
+    plt.xlim(xmin + (xmax - xmin) * 0.55, 0.72*xmax)
 
 
 
@@ -66,11 +64,14 @@ params = {
 pylab.rcParams.update(params)
 
 
-
+import pickle
 
 #set current directory to the root directory of the project
 application_properties.set_current_directory()
 
+import lmoments
+
+from plot2D.map_parameters import polar_stereographic
 
 xs = polar_stereographic.xs
 ys = polar_stereographic.ys
@@ -118,6 +119,7 @@ def get_low_ret_level(params = [], return_period = 2, zero_fraction = 0.0):
 
 #Martins E.S. (2000)
 def ksi_pdf(ksi):
+
     if abs(ksi) >= 0.5:
         return 0
     else:
@@ -127,6 +129,16 @@ def ksi_pdf(ksi):
     q = 9.0
     b = gamma(p) * gamma(q) / gamma(p + q)
     return (-ksi + 0.5) ** (p - 1) * (0.5 + ksi) ** (q - 1) / b
+
+#Coles 1999
+def ksi_pdf_coles(ksi):
+    if ksi <= 0:
+        return 1.0
+    if ksi >= 1:
+        return 0.0
+    alpha = 1.0
+    lam = 1.0
+    return np.exp(-lam * (1.0 / (1.0 - ksi) - 1) ** alpha)
 
 
 #if i_list or j_list are None, then take indices from the indices_file
@@ -184,7 +196,9 @@ def qfunc(x, sigma, mu, ksi):
 
     if abs(ksi) <= 1.0e-2: #ksi != 0
         the_power = -(x - mu) / sigma
-        return np.exp(the_power)
+        result = np.exp(the_power)
+        assert result > 0, 'the_power = {0}, mu = {1}, sigma = {2}'.format(the_power, mu, sigma)
+        return result
 
     the_base = 1.0 + ksi * (x - mu) / sigma
     result = the_base ** (-1.0 / ksi)
@@ -219,7 +233,6 @@ def objective_function_stationary_high(pars, data):
         return BIG_NUM
 
     for the_data in data:
-
         qi = qfunc(the_data, sigma, mu, ksi)
         if qi == None:
             return BIG_NUM
@@ -233,7 +246,7 @@ def objective_function_stationary_high(pars, data):
     assert np.isfinite(result), 'result is nan, result = {0}'.format(result)
     return result
 
-#-ln(gevpdf)
+#-ln(gevpdf* ksi_pdf)
 def objective_function_stationary_low(pars, data):
     result = 0.0
     sigma, mu, ksi = pars
@@ -290,21 +303,43 @@ def get_initial_params_using_lm(vals):
 
 
 
+
+
+def optimize_stationary_using_derivatives(extremes):
+
+    pass
+
+
+
 #optimize using maxima over certain period
 #returns [sigma, mu, ksi, zero_fraction]
 def optimize_stationary_for_period(extremes, high_flow = True, use_lmoments = False):
 
-    extremes = 1.0e6 * extremes
+    the_min = np.min(extremes)
+    if (the_min < 100):
+        factor = 100.0 / the_min if the_min > 0 else 1.0
+    else:
+        factor = 1.0
+        
+    indices = np.where(extremes > 0)
+    zero_fraction = 1.0 - extremes[indices].shape[0] / float(len(extremes))
 
     #if all values are 0, do not optimize, return None for the parametes values
-    if np.min(extremes) < 1.0:
+    if zero_fraction >= 0.5:
         return [None, None, None, 1.0]
 
-    indices = np.where(extremes > 1)
-    zero_fraction = 1.0 - extremes[indices].shape[0] / float(len(extremes))
+    the_min = np.min(extremes[indices])
+    if (the_min < 100):
+        factor = 100.0 / the_min
+    else:
+        factor = 1.0
+
+    extremes = factor * extremes
+
 
     ##L-moments
     if use_lmoments:
+        #extremes /= 1.0e6
         pars = get_initial_params_using_lm(extremes[indices])
         pars.append(zero_fraction)
         lev = get_high_ret_level_stationary(pars, 10.0)
@@ -351,14 +386,15 @@ def optimize_stationary_for_period(extremes, high_flow = True, use_lmoments = Fa
 
 
     if warnflag != 0:
-        print extremes
+        print list(extremes)
         print warnflag
         print pars
+        assert False, 'warnflag != 0'
 
 
     #assert warnflag == 0, 'warnflag = {0}, z = {1}, \n extremes = {2}'.format(warnflag, z, str(extremes))
     assert z > 0, 'z <= 0'
-    
+
     if z < 0:
         print 'converged to negative objective function'
         return [None, None, None, zero_fraction]
@@ -377,9 +413,10 @@ def optimize_stationary_for_period(extremes, high_flow = True, use_lmoments = Fa
     assert z != BIG_NUM, 'z == BIG_NUM'
     assert z >= 0, 'z < 0'
 
-    pars[0] = pars[0] / (1.0e6)
-    pars[1] = pars[1] / (1.0e6)
+    pars[0] = pars[0] / factor
+    pars[1] = pars[1] / factor
     pars = np.append(pars, zero_fraction)
+    extremes /= factor #change back the extremes
     return pars
 
 
@@ -481,7 +518,7 @@ def plot_low_flows(period = 10,
     int_ticker = LinearLocator(numticks = color_map.N + 1)
     plt.colorbar(ticks = int_ticker, format = '%.1f')
 
-    plot_utils.zoom_to_qc(plt)
+    zoom_to_qc()
     print 'saving %s' % imagefile
     
     plt.savefig(imagefile, bbox_inches = 'tight')
@@ -531,7 +568,7 @@ def plot_high_flows(period = 10,
 #    plot_directions(data_mask = to_plot)
     plt.colorbar( ticks = int_ticker, format = "%.1f" )
 
-    plot_utils.zoom_to_qc(plt)
+    zoom_to_qc()
 
     plt.savefig(imagefile, bbox_inches = 'tight')
 

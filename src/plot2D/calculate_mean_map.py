@@ -15,7 +15,7 @@ from datetime import datetime
 import pylab
 #from util.geo.ps_and_latlon import *
 from math import *
-from plot2D.plot_utils import draw_meridians_and_parallels
+from util.plot_utils import draw_meridians_and_parallels
 import matplotlib as mpl
 
 from readers.read_infocell import *

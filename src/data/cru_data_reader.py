@@ -63,13 +63,22 @@ class CruReader():
         return [np.mean(normals[d]) for d in the_dates]
         pass
 
-    def get_monthly_normals_integrated_over(self, the_lons, the_lats):
+    def get_monthly_normals_integrated_over(self, the_lons, the_lats, start_date = None, end_date = None):
         data = self.get_spatial_integral_for_points(the_lons, the_lats)
         monthly_normals = np.zeros((12,))
         for t, x in zip(self.times, data):
+            if start_date is not None:
+                if t < start_date:
+                    continue
+            if end_date is not None:
+                if t > end_date:
+                    break
+
             monthly_normals[t.month - 1] += x
 
-        dt = self.times[-1] - self.times[0]
+        start = start_date if start_date is not None else self.times[0]
+        end = end_date if end_date is not None else self.times[-1]
+        dt = end - start
         n_years = float( dt.days // 365 )
         monthly_normals /= n_years
         return monthly_normals
@@ -127,9 +136,17 @@ class CruReader():
         self.data = np.transpose( self.data, axes = (0, 2, 1))
         self.missing_data = precip.missing_value
 
+    def print_file_info(self):
+        print "start date: ", self.times[0]
+        print "end date: ", self.times[-1]
+        dlon = self.lons[1] - self.lons[0]
+        dlat = self.lats[1] - self.lats[0]
+        print "dlon, dlat = {0},{1}".format( dlon, dlat )
+
 
 def test():
     cr = CruReader()
+    cr.print_file_info()
 
 
 if __name__ == '__main__':

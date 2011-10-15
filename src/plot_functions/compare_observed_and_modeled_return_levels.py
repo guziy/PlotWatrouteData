@@ -187,7 +187,7 @@ def plot_dates_scatter(model_high_dates, station_high_dates, model_low_dates, st
 
 
 def main():
-    path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'
+    path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na.nc'
     data = pe_calc.get_station_and_corresponding_model_data(path = path)
     print len(data)
@@ -299,13 +299,13 @@ def main():
                 'Observed return level (${\\rm m^3/s}$)',
                 'Modelled return level (${\\rm m^3/s}$)'
                 )
-    plt.savefig('high_return_levels_scatter.png')
+    plt.savefig('high_return_levels_scatter.pdf', bbox_inches = 'tight')
 
     ##high flow values
     plot_scatter( station_maxima, model_maxima, "observed (${\\rm m^3/s}$)",
                     "modelled (${\\rm m^3/s}$)",
                     "high flow values", different_shapes_and_colors = False)
-    plt.savefig('high_values_scatter.png')
+    plt.savefig('high_values_scatter.pdf', bbox_inches = 'tight')
 
     #---------------------------low
     station_return_levels = {}
@@ -421,7 +421,7 @@ def main():
                 'Observed return level (${\\rm m^3/s}$)',
                 'Modelled return level (${\\rm m^3/s}$)' 
                 )
-    plt.savefig('low_return_levels_scatter.png')
+    plt.savefig('low_return_levels_scatter.pdf', bbox_inches = 'tight')
 
 
 

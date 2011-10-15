@@ -1,3 +1,4 @@
+import ds
 __author__="huziy"
 __date__ ="$23 mai 2010 13:59:05$"
 
@@ -19,7 +20,7 @@ from math import *
 import pylab
 from util.geo.ps_and_latlon import *
 from math import *
-from plot2D.plot_utils import draw_meridians_and_parallels
+from util.plot_utils import draw_meridians_and_parallels
 from matplotlib.patches import Rectangle
 
 
@@ -31,8 +32,13 @@ from plot2D.calculate_mean_map import *
 from data.cell import Cell
 from data.basin import Basin
 
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 
 
+from matplotlib.patches import RegularPolygon
+
+import util.plot_utils as plot_utils
 import wrf_static_data.read_variable as wrf
 
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
@@ -67,7 +73,7 @@ ys = polar_stereographic.ys
 lons = polar_stereographic.lons
 lats = polar_stereographic.lats
 
-m = polar_stereographic.basemap
+
 
 
 #Flow to the right is 2, down is 4, left is 6, and up is 8, the odd numbers are
@@ -451,8 +457,8 @@ def write_new_infocell(path = "infocell_QC2.txt"):
 
 
     for cell in cell_list:
-        if cell.next != None:
-            if cell.next.basin == None:
+        if cell.next is not None:
+            if cell.next.basin is None:
                 print cell.next.coords()
                 
 
@@ -492,20 +498,19 @@ def calculate_drainage(the_cell):
 
 
 def calculate_drainage_areas():
-    '''
+    """
     calculates drainage areas in km**2
-    '''
+    """
     for basin in basins:
         for cell in basin.cells:
             cell.calculate_drainage_area()
 
 
-def calculate_drainage_for_all(cells):
-    '''
-    Calculate drainage, number of cells that 
+def calculate_drainage_for_all(cells = None):
+    """
+    Calculate drainage, number of cells that
     inflow into the current cell
-    '''
-    check_for_loops(cells)
+    """
     for i in range(n_cols):
         for j in range(n_rows):
             calculate_drainage(cells[i][j])
@@ -521,46 +526,68 @@ def get_slopes_from_wrf_data(min_slope = 1.0e-3):
             cells[i][j].chslp = slp
     pass
 
-def get_flow_directions(cells):
-    u = np.zeros((n_cols, n_rows))
-    v = np.zeros((n_cols, n_rows))
+def get_flow_directions(cells, basins = None):
+    """
+    Document me!
+    """
+    u = np.ma.masked_all((n_cols, n_rows))
+    v = np.ma.masked_all((n_cols, n_rows))
 
-    u[:,:] = None
-    v[:,:] = None
-    for i in range(n_cols):
-        for j in range(n_rows):
-            if cells[i][j].next != None:
+    if basins is None:
+        for i in range(n_cols):
+            for j in range(n_rows):
                 next_cell = cells[i][j].next
-                u[i, j] = float(next_cell.x - i)
-                v[i, j] = float(next_cell.y - j)
+                if next_cell is not None:
+                    if next_cell is not None:
+                        iNext, jNext = next_cell.coords()
+                        # @type cell Cell
+                        i, j = cells[i][j].coords()
+                        dx = float(xs[iNext,jNext] - xs[i,j])
+                        dy = float(ys[iNext,jNext] - ys[i,j])
+                        dr = np.sqrt(dx ** 2 + dy ** 2)
+                        u[i, j] =  dx
+                        v[i, j] = dy
+    else:
+        ##plot directions only for the cells inside basins
+        for basin in basins:
+            for cell in basin.cells:
+                next_cell = cell.next
+                if next_cell is not None:
+                    iNext, jNext = next_cell.coords()
+                    # @type cell Cell
+                    i, j = cell.coords()
+                    dx = float(xs[iNext,jNext] - xs[i,j])
+                    dy = float(ys[iNext,jNext] - ys[i,j])
+                    dr = np.sqrt(dx ** 2 + dy ** 2)
+                    u[i, j] =  dx
+                    v[i, j] = dy
+
+
     return u, v
 
 
-def plot_directions(cells):
-    '''
+def plot_directions(cells, basemap = None, domain_mask = None):
+    """
         cells - 2D array of cells
         basins_mask - 1 where basins, 0 elsewhere
-    '''
-    u_plot = np.zeros((n_cols, n_rows))
-    v_plot = np.zeros((n_cols, n_rows))
+    """
+    if basemap is None:
+        the_basemap = polar_stereographic.basemap
+    else:
+        the_basemap = basemap
 
-    u_plot[:, :] = None
-    v_plot[:, :] = None
 
     u, v = get_flow_directions(cells)
-
-    for i in range(n_cols):
-        for j in range(n_rows):
-            if cells[i][j].next != None and len(cells[i][j].basins) > 0:
-                u_plot[i, j] = u[i, j]
-                v_plot[i, j] = v[i, j]
-
-
-    m.quiver(xs, ys, u_plot, v_plot, scale = 6.5, width = 0.02 , units='inches')
+    if domain_mask is not None:
+        u = np.ma.masked_where(~(domain_mask == 1), u)
+        v = np.ma.masked_where(~(domain_mask == 1), v)
+    x = np.ma.mean( np.ma.sqrt(np.ma.power(u, 2) + np.ma.power(v, 2)))
+    print "arrow width = ", 0.1 * x
+    the_basemap.quiver(xs, ys, u, v, pivot = 'middle', scale = 1.2, width =  0.1 * x, units='xy')
     
-    m.drawcoastlines(linewidth=0.5)
-    draw_meridians_and_parallels(m, 20)
-    plt.savefig("flows_and_masks.png", bbox_inches='tight')
+ #   m.drawcoastlines(linewidth=0.5)
+ #   draw_meridians_and_parallels(m, 20)
+ #   plt.savefig("flows_and_masks.pdf", bbox_inches='tight')
     
 
 
@@ -568,7 +595,7 @@ def plot_directions(cells):
 def check_cell_for_loop(cell):
     current = cell
     path = [cell]
-    while current.next != None:
+    while current.next is not None:
         current = current.next
         if current in path:
             print 'closed path:'
@@ -650,57 +677,80 @@ def plot_basins_separately(path, cells):
 
 
 
-def plot_basins():
-    '''
-        Plot amno basins as scatter plot 
-    '''
+def plot_basins(sign_basins = True, save_to_file = False, 
+                draw_rivers = True, basemap = None):
+    """
+        Plot amno basins as scatter plot,
+        if sign_basins == True, then signs the basin names on top
+
+    """
 
     bas_names = []
     for basin in basins:
         print basin.name, len(basin.cells)
-        assert basin.id != None
+        assert basin.id is not None
         bas_names.append(basin.name)
 
     
-    to_plot = np.zeros((n_cols, n_rows))
-    to_plot[:,:] = None
+    #to_plot = np.zeros((n_cols, n_rows))
+    to_plot = np.ma.masked_all((n_cols, n_rows))
 
     for basin in basins:
-        i, j = basin.get_approxim_middle_indices()
-        
-#        text = '{0}'.format(basin.name)
-#        plt.annotate(text, xy = (xs[i, j], ys[i, j]), size = 20,
-#                        ha = 'center', va = 'center', bbox = dict(facecolor = 'white', pad = 12))
+        if sign_basins:
+            i, j = basin.get_approxim_middle_indices()
+            text = '{0}'.format(basin.name)
+            plt.annotate(text, xy = (xs[i, j], ys[i, j]), size = 20,
+                            ha = 'center', va = 'center', bbox = dict(facecolor = 'white', pad = 8))
 
         for cell in basin.cells:
             i, j = cell.x, cell.y
-            to_plot[ i, j] = basin.id
+            to_plot[i, j] = basin.id
 
 
 
     color_map = mpl.cm.get_cmap('jet', len(bas_names))
-    m.scatter(xs, ys, c=to_plot, marker='s', s=200,
-              cmap = color_map, linewidth = 0, alpha = 0.4)
 
-    m.drawcoastlines(linewidth = 1)
-    m.drawstates(linewidth = 0.5)
-    m.drawcountries(linewidth = 0.5)
-    m.drawrivers()
- #   plot_basin_legend(bas_names, color_map)
-    
-    ymin, ymax = plt.ylim()
-    plt.ylim(ymin + 0.14*(ymax - ymin), ymax * 0.34)
 
-    xmin, xmax = plt.xlim()
-    plt.xlim(xmin + (xmax - xmin) * 0.65, 0.84*xmax)
+
+    if basemap is None:
+        b = m
+    else:
+        b = basemap
 
     
+    x, y = b(lons, lats)
+
+
+    x_left = x[0,:] - (x[1,:] - x[0,:])
+    y_bottom = y[:,0] - (y[:,1] - y[:,0])
+
+    x1 = np.zeros(x.shape)
+    y1 = np.zeros(y.shape)
+
+    x1[1:,:] = x[:-1,:]
+    x1[0,:] = x_left
+    x1 = 0.5 * (x1 + x)
+
+    y1[:,1:] = y[:,:-1]
+    y1[:, 0] = y_bottom
+    y1 = 0.5 * (y + y1)
  
-#    plot_basin_boundaries()
-    plot_basin_boundaries_from_shape(m, linewidth = 1)
 
 
-    plt.savefig("amno_quebec_basins.png", bbox_inches='tight')
+ #   b.scatter(x, y, c = to_plot, marker = 's', s = 200)
+    b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
+                  cmap = color_map, alpha = 0.4)
+                  
+#    b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
+#                  cmap = color_map, alpha = 0.4)
+
+    b.drawcoastlines(linewidth = 0.5)
+    if draw_rivers:
+        b.drawrivers()
+
+    plot_basin_boundaries_from_shape(b, linewidth = 1)
+    if save_to_file:
+        plt.savefig("amno_quebec_basins.pdf", bbox_inches='tight')
 
 
 
@@ -741,8 +791,8 @@ def paint_all_points_with_directions(cells):
 
     for i in range(n_cols):
         for j in range(n_rows):
-            if cells[i][j].next != None : to_plot[i,j] = 1
-            if cells[i][j].direction_value == 0: to_plot[i,j] = 3
+            if cells[i][j].next is not None: to_plot[i,j] = 1
+            if not cells[i][j].direction_value: to_plot[i,j] = 3
             if the_data[i, j] == 1 and cells[i][j].direction_value == 0: to_plot[i, j] = 2
     color_map = mpl.cm.get_cmap('jet', 3)
     m.scatter(xs, ys, c = to_plot, cmap = color_map , marker='s', s=150,
@@ -837,16 +887,16 @@ def read_next_for_outlets(path = 'data/infocell/next_for_outlets.txt'):
         if ':' not in line:
             continue
         basin, i_list, j_list = get_indices_from_line(line)
-        if basin != None:
+        if basin is not None:
             for i, j, outlet in zip(i_list, j_list, basin.exit_cells):
                 outlet.set_next(cells[i][j])
     pass
 
 
 def read_basins(path = 'data/infocell/amno180x172_basins.nc'):
-    '''
+    """
     reads data from netcdf files and fills in the basins array
-    '''
+    """
 
     descr_map = get_basin_descriptions()
     ncfile = Dataset(path)
@@ -855,24 +905,39 @@ def read_basins(path = 'data/infocell/amno180x172_basins.nc'):
 
 
     for name, values in ncfile.variables.iteritems():
-        if n_cols == values.shape[1]:#transpose if necessary
-            the_values = np.transpose(values)
+        data = values[:]
+        if n_cols == data.shape[1]:#transpose if necessary
+            the_values = np.transpose(data)
         else:
-            the_values = values
+            the_values = data
             
         the_basin = Basin(id = id, name = name)
         if descr_map.has_key(name):
             the_basin.description = descr_map[name]
 
         basins.append(the_basin)
-        for i in range(n_cols):
-            for j in range(n_rows):
-                if the_values[i,j] == 1:
-                    the_basin.add_cell(cells[i][j])
+
+        the_is, the_js = np.where(the_values == 1)
+        #add cells to a basin
+        for i, j in zip(the_is, the_js):
+            the_basin.add_cell(cells[i][j])
  
         id += 1
 
     ncfile.close()
+    return basins
+    pass
+
+def get_domain_mask(path = 'data/infocell/amno180x172_basins.nc'):
+    ds = Dataset(path)
+    result = None
+    for v in ds.variables.values():
+        if result == None:
+            result = v[:]
+        else:
+            result += v[:]
+    ds.close()
+    return result
     pass
 
 
@@ -929,10 +994,10 @@ def delete_basins(names):
 
 
 def get_neighbors_of(cell):
-    '''
+    """
         returns the list of neighbor cells of the current one,
         the neighbors belong to the same basin as a cell
-    '''
+    """
     i0, j0 = cell.coords()
     result = []
     for i in range(-1,2):
@@ -1101,7 +1166,7 @@ def correct_directions():
         for cell in basin.cells:
             to_del = []
             for prev in cell.previous:
-                if prev.basin == None:
+                if prev.basin is None:
                     to_del.append(prev)
 
 
@@ -1113,11 +1178,11 @@ def get_cells_without_basin():
     missing = []
     for i in range(n_cols):
         for j in range(n_rows):
-            if cells[i][j].basin != None: continue
+            if cells[i][j].basin is not None: continue
             neighbors = get_all_neighbors(cells[i][j])
             is_missing = 0
             for neighbor in neighbors:
-                if neighbor.basin == None:
+                if neighbor.basin is None:
                     is_missing += 1
             if is_missing < 2:
                 missing.append(cells[i][j])
@@ -1129,7 +1194,7 @@ def get_ddm_from_trip():
     for i in range(n_cols):
         for j in range(n_rows):
             the_cell = cells[i][j]
-            if the_cell.basin == None:
+            if the_cell.basin is None:
                 continue
 
             inext, jnext = get_indices_of_next_cell_for_trip(data[i, j], i, j)
@@ -1145,7 +1210,7 @@ def get_ddm_from_trip():
 ##
 ##
 def get_basins_with_cells_connected_using_hydrosheds_data():
-    path = 'data/hydrosheds/directions.nc'
+    path = 'data/hydrosheds/directions_qc_amno.nc'
     ncFile = Dataset(path)
     read_cell_area()
 
@@ -1188,19 +1253,23 @@ def get_basins_with_cells_connected_using_hydrosheds_data():
 
 
     calculate_drainage_areas()
-    check_for_loops()
+   # check_for_loops()
 
-    read_clay()
-    read_sand()
+   # read_clay()
+   # read_sand()
     ncFile.close()
     return basins
 
 
 
 
-def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
+def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc', basemap = None,
+                              create_figure = True
+                              ):
+    """
+    TODO: document me !!!!
+    """
     ncFile = Dataset(path)
-   # read_cell_area()
 
 
     inext_var = ncFile.variables['flow_direction_index0'][:]
@@ -1211,17 +1280,23 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
 
     lons = np.array(lons)
 
-    
-    plt.figure()
+
+    #if new figure creation is requested
+    if create_figure:
+        plt.figure()
+
     print np.min(lons), np.max(lons)
 
-    basemap = Basemap(resolution = 'i', llcrnrlon = np.min(lons),
+    if basemap is None:
+        basemap = Basemap(resolution = 'i', llcrnrlon = np.min(lons),
                                         llcrnrlat = np.min(lats),
                                         urcrnrlon = np.max(lons),
                                         urcrnrlat = np.max(lats)
                                         )
 
-    
+
+
+    lons[lons >= 180] -= 360
     
     lons, lats = basemap(lons, lats)
 
@@ -1242,9 +1317,9 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
 
     print np.ma.min(u), np.ma.max(u)
     basemap.quiver(lons, lats, u, v, width = 0.06 , units='xy', pivot = 'tail')
+   
 
 
-    basemap.drawcoastlines()
 
 #    ymin, ymax = plt.ylim()
 #    xmin, xmax = plt.xlim()
@@ -1258,11 +1333,16 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc'):
 
 def read_derived_from_hydrosheds():
 
+    """
+    !!!!!!!!!!!!!!!!!!!!!
+    Plotting with Zooming
+    """
+
    # get_cells_from_infocell('data/infocell/HQ2_infocell.txt')
 
     path = 'data/hydrosheds/directions_qc_amno.nc'
     ncFile = Dataset(path)
-    read_cell_area()
+  #  read_cell_area()
 
 
     inext_var = ncFile.variables['flow_direction_index0'][:]
@@ -1286,12 +1366,8 @@ def read_derived_from_hydrosheds():
             jnext = jnext_var[i, j]
             
             the_cell.chslp = slopes[i, j] if slopes[i, j] > 1.0e-10 else min_slope
-
-
-            
+         
             if inext >= 0:
-                print inext, jnext
-                print "(%f, %f) -> (%f, %f)" % (lons[i, j], lats[i,j], lons[inext, jnext], lats[inext, jnext])
                 the_cell.set_next(cells[inext][jnext])
             else:
                 the_cell.set_next(None)
@@ -1300,15 +1376,73 @@ def read_derived_from_hydrosheds():
 
 
 
-    calculate_drainage_areas()
-    check_for_loops()
+#    calculate_drainage_areas()
+#    check_for_loops()
     plot_basins()
-    plot_directions(cells)
-    
-    read_clay()
-    read_sand()
 
-    write_new_infocell()
+    print 'plotted basins'
+    plot_directions(cells)
+    print 'plotted directions'
+   # plot_utils.zoom_to_qc(plotter = plt)
+
+    domain_mask = get_domain_mask()
+
+    x_start = np.ma.min(xs[domain_mask == 1])
+    x_end = np.ma.max(xs[domain_mask == 1]) 
+
+    y_start = np.ma.min(ys[domain_mask == 1]) 
+    y_end = np.ma.max(ys[domain_mask == 1])
+
+    marginx = abs(x_start) * 1.0e-1
+    marginy = abs(y_start) * 1.0e-1
+    x_start -= marginx * 0.2
+    x_end += marginx
+    y_start -= marginy
+    y_end += marginy
+
+
+    plt.xlim(x_start, x_end)
+    plt.ylim(y_start, y_end)
+
+     #inset axes for zoomed plot
+    ax = plt.gca()
+    theBasemap = Basemap(projection = 'npstere',
+                        lat_ts = 60, lat_0 = -10, lon_0 = -115,
+                        boundinglat = 0, resolution='c')
+
+    axins = zoomed_inset_axes(ax, 0.1, loc = 4)
+    x, y = theBasemap(lons, lats)
+    x1 = np.min(x)
+    x2 = np.max(x)
+    y1 = np.min(y)
+    y2 = np.max(y)
+    axins.set_xlim(x1, x2)
+    axins.set_ylim(y1, y2)
+
+    coords = [
+        [x1, y1], [x1, y2], [x2, y2], [x2, y1], [x1, y1]
+    ]
+
+    axins.add_patch(Polygon(coords, facecolor = 'none', linewidth = 5, edgecolor = 'r'))
+
+    #domain_mask = get_domain_mask()
+    domain_mask = np.ma.masked_where(domain_mask == 0, domain_mask)
+    theBasemap.pcolormesh(x, y, domain_mask , vmax = 1, vmin = 0)
+    theBasemap.drawcoastlines()
+
+    axins.annotate('AMNO', (x1 + abs(x1) * 1.0e-1, y1 + abs(y1) * 1.0e-1),
+                    bbox = dict(facecolor = 'white', pad = 4))
+
+    #plot_basins(sign_basins = False, draw_rivers = False, basemap = theBasemap)
+    #center zoom on amno
+    plt.xlim(x1  , x2)
+    plt.ylim(y1  , y2)
+
+    
+#    read_clay()
+#    read_sand()
+
+#    write_new_infocell()
     ncFile.close()
 
    
@@ -1382,9 +1516,9 @@ def get_all_neighbors(cell):
 
 
 def plot_boundaries(cell):
-    '''
+    """
     Plot boundaries of the cell
-    '''
+    """
     neighbors = get_all_neighbors(cell)
     lines = []
     for neighbor in neighbors:
@@ -1453,8 +1587,9 @@ if __name__ == "__main__":
     t0 = time.clock()
 #    test()
 #    main()
-#    read_derived_from_hydrosheds()
-    plot_directions_from_file(path = 'data/hydrosheds/directions_qc_amno.nc')
+    read_derived_from_hydrosheds()
+    
+#    plot_directions_from_file(path = 'data/hydrosheds/directions_qc_amno.nc')
 #    plot_directions_from_file(path = 'data/hydrosheds/directions0.nc')
     plt.show()
     print 'Execution time %f seconds' % (time.clock() - t0)

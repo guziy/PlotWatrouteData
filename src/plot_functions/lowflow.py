@@ -78,7 +78,7 @@ class BasinIndices():
         return self.name.__hash__()
 
     def __eq__(self, other):
-        if other == None:
+        if other is None:
             return False
 
         return self.name == other.name
@@ -139,11 +139,11 @@ def get_low_flow(discharge_data, times, duration_days = timedelta(days = 7),
     for i, the_time, the_date in zip(range(len(times)), times, dates_of_stamp_year):
 
         #check whether the_time inside the specified range
-        if start_date != None:
+        if start_date is not None:
             if start_date > the_time:
                 continue
 
-        if end_date != None:
+        if end_date is not None:
             if end_date <= the_time + duration_days:
                 break
 
@@ -163,7 +163,7 @@ def get_low_flow(discharge_data, times, duration_days = timedelta(days = 7),
         if the_time.month == start_month_of_stamp_year and the_time.day == 1:
             min_value = sys.maxint
 
-            if the_min_date == None:
+            if the_min_date is None:
                 the_min_date = the_date
             else:
                 if dates_to_occurrences.has_key(the_min_date):
@@ -206,11 +206,11 @@ def get_high_flow(discharge_data, times, duration_days = timedelta(days = 7),
     the_max_date = None
     for i, the_time, the_date in zip(range(len(times)), times, dates_of_stamp_year):
         #check whether the_time inside the specified range
-        if start_date != None:
+        if start_date is not None:
             if start_date > the_time:
                 continue
 
-        if end_date != None:
+        if end_date is not None:
             if end_date < the_time + duration_days:
                 break
         #store day when the minimum occurred at the end of a year
@@ -228,7 +228,7 @@ def get_high_flow(discharge_data, times, duration_days = timedelta(days = 7),
 
         if the_time.month == start_month_of_stamp_year and the_time.day == 1:
             max_value = -sys.maxint
-            if the_max_date == None:
+            if the_max_date is None:
                 the_max_date = the_date
             else:
                 if dates_to_occurrences.has_key(the_max_date):
@@ -311,7 +311,7 @@ def calculate_occurences_for_member(nc = None, bin_dates = [], high_flow = True,
                 the_basin = b
                 break
 
-        if the_basin == None:
+        if the_basin is None:
             continue
 
         if basin_to_data.has_key(the_basin):
@@ -363,9 +363,9 @@ def calculate_occurences_for_member(nc = None, bin_dates = [], high_flow = True,
 
 
 def calculate_mean_occurences_and_std(member2basin_and_occ = {}):
-    '''
+    """
         return mean occurence number and std for each day of the stamp year
-    '''
+    """
     basin_2_mean = {}
     basin_2_std = {}
 
@@ -585,7 +585,7 @@ def main(event_duration = timedelta(days = 7),
         print basin.name, basin.get_number_of_cells()
         ax = plt.subplot(6,4,i,sharey = ax_prev)
         
-        if ax_prev == None:
+        if ax_prev is None:
             ax_prev = ax
 
         n_cells_and_years = float(basin.get_number_of_cells() * n_years)
@@ -642,8 +642,9 @@ def main(event_duration = timedelta(days = 7),
 #            '%s_basins/%s_%d_days_%s.png' % ( prefix, prefix, duration_days , b.name))
         i += 1
 
-    plt.figlegend([b_current[0],b_future[0]],['Current climate', 'Future climate'], 'lower right')
-    plt.savefig('%s_%d_panel.png' % (prefix, event_duration.days))
+    plt.figlegend([b_current[0],b_future[0]],['Current climate', 'Future climate'], loc = (0.5, 0.1))
+    plt.figtext(0.05, 0.6, "NORMALIZED FREQUENCY", rotation = 90)
+    plt.savefig('%s_%d_panel.pdf' % (prefix, event_duration.days))
     pass
 
 def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
@@ -698,7 +699,7 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
                     future_end_date = future_end_date,
                     stamp_year = stamp_year, start_month_of_stamp_year = start_month_of_stamp_year,
                     bin_interval_dt = bin_interval_dt, data_folder = data_folder,
-                    event_duration = event_duration
+                    event_duration =high_event_duration
                 )
 
         the_low, future = \
@@ -709,7 +710,7 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
                     future_end_date = future_end_date,
                     stamp_year = stamp_year, start_month_of_stamp_year = start_month_of_stamp_year,
                     bin_interval_dt = bin_interval_dt, data_folder = data_folder,
-                    event_duration = event_duration
+                    event_duration = low_event_duration
                 )
 
 
@@ -717,12 +718,12 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
         low_basin2mean, low_basin2std = the_low
 
         prefix = 'high'
-        pickle.dump( high_basin2mean, open('%s_duration%d_current_basin2mean' % (prefix, event_duration.days) ,'w'))
-        pickle.dump( high_basin2std, open('%s_duration%d_current_basin2std' % (prefix, event_duration.days) ,'w'))
+        pickle.dump( high_basin2mean, open('%s_duration%d_current_basin2mean' % (prefix, high_event_duration.days) ,'w'))
+        pickle.dump( high_basin2std, open('%s_duration%d_current_basin2std' % (prefix, high_event_duration.days) ,'w'))
 
         prefix = 'low'
-        pickle.dump( low_basin2mean, open('%s_duration%d_current_basin2mean' % (prefix, event_duration.days) ,'w'))
-        pickle.dump( low_basin2std, open('%s_duration%d_current_basin2std' % (prefix, event_duration.days) ,'w'))
+        pickle.dump( low_basin2mean, open('%s_duration%d_current_basin2mean' % (prefix, low_event_duration.days) ,'w'))
+        pickle.dump( low_basin2std, open('%s_duration%d_current_basin2std' % (prefix, low_event_duration.days) ,'w'))
 
 
 
@@ -810,17 +811,15 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
         i += 1
 
     plt.figlegend([high_b[0],low_b[0]],['Maximum flow', 'Minimum flow'], 'upper center')
-    plt.savefig('current_occurences_panel.png')
+    plt.savefig('current_occurences_panel.pdf')
     pass
 
 
 if __name__ == "__main__":
     data_folder = 'data/streamflows/hydrosheds_euler9'
 #compare current and future occurences
-    main(data_folder = data_folder, event_duration = timedelta(days = 15), prefix = 'low',
-         start_month_of_stamp_year = 1, stamp_year = 2000, high_flow = False)
-    main(data_folder = data_folder, event_duration = timedelta(days = 1), prefix = 'high',
-        start_month_of_stamp_year = 1, stamp_year = 2000, high_flow = True)
+    main(data_folder = data_folder, event_duration = timedelta(days = 15), prefix = 'low', high_flow = False)
+    main(data_folder = data_folder, event_duration = timedelta(days = 1), prefix = 'high')
 
 #compare high and low occurences
     plot_high_low_occ_together(high_event_duration = timedelta(days = 1),

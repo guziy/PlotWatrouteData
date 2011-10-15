@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator
 
 from plot2D.map_parameters import polar_stereographic
-from plot2D.plot_utils import draw_meridians_and_parallels
+from util.plot_utils import draw_meridians_and_parallels
 
 import numpy as np
 

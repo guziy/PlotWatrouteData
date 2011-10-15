@@ -4,14 +4,13 @@
 __author__="huziy"
 __date__ ="$4 juil. 2010 16:08:46$"
 
-from plot2D.plot_utils import draw_meridians_and_parallels
+from util.plot_utils import draw_meridians_and_parallels
 from mpl_toolkits.basemap import Basemap
 import numpy as np
 import matplotlib.pyplot as plt
 
 import pylab
 
-from plot2D.plot_utils import *
 
 
 MINUTES_PER_DEGREE = 60.0
