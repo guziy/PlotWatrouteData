@@ -2,18 +2,30 @@ __author__="huziy"
 __date__ ="$20 dec. 2010 12:03:42$"
 
 
-
+from datetime import timedelta
 
 current_ids = [ 'aet', 'aev', 'aey', 'aez', 'afa']
 future_ids =  [ 'aeu', 'aew','afc', 'afd' , 'afb']
 
 current2future = dict(zip(current_ids, future_ids))
 
+h3 = timedelta(hours = 3)
+h6 = timedelta(hours = 6)
+id_to_step = {
+    'aet' : h6,
+    'aev' : h3,
+    'aex' : h6,
+    'aey' : h6,
+    'aez' : h6,
+    'afa' : h6
+}
+
+
 control_id = 'aex'
 
 all_current = []
 all_current.extend(current_ids)
-all_current.append(control_id)
+#all_current.append(control_id)
 
 
 all_future = []
