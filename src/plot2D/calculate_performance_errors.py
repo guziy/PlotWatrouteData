@@ -1,3 +1,4 @@
+from shape.basin_boundaries import plot_basin_boundaries_from_shape
 
 __author__="huziy"
 __date__ ="$8 dec. 2010 10:20:08$"
@@ -30,7 +31,7 @@ from index_object import IndexObject
 import netCDF4 as nc
 
 from data.cell import Cell
-
+from data import members
 
 import diagnose_ccc.compare_precip as compare_precip
 
@@ -415,28 +416,40 @@ def plot_precip_for_upstream(i_index, j_index, station_id):
 
 
 def main():
-
     """
 
     """
-    skip_ids = ['081007', '081002']
+    skip_ids = ['081007', '081002', "042607"]
+
+    #comment to plot for all ensemble members
+    members.current_ids = []
+
 
     pylab.rcParams.update(params)
-    path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
+    path_format = 'data/streamflows/hydrosheds_euler9/%s_discharge_1970_01_01_00_00.nc'
+
+    path_to_analysis_driven = path_format % members.control_id
+
+    simIdToData = {}
+    simIdToTimes = {}
+    for the_id in members.current_ids:
+        thePath = path_format % the_id
+        simIdToData[the_id], simIdToTimes[the_id], i_list, j_list = data_select.get_data_from_file(thePath)
+
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
 
     old = True #in the old version drainage and lon,lats in the file are 1D
 
-    data, times, i_list, j_list = data_select.get_data_from_file(path)
+    data, times, i_list, j_list = data_select.get_data_from_file(path_to_analysis_driven)
     if not old:
-        da_2d = data_select.get_field_from_file(path, 'accumulation_area')
-        lons = data_select.get_field_from_file(path, field_name = 'longitude')
-        lats = data_select.get_field_from_file(path, field_name = 'latitude')
+        da_2d = data_select.get_field_from_file(path_to_analysis_driven, 'accumulation_area')
+        lons = data_select.get_field_from_file(path_to_analysis_driven, field_name = 'longitude')
+        lats = data_select.get_field_from_file(path_to_analysis_driven, field_name = 'latitude')
     else:
         lons = polar_stereographic.lons
         lats = polar_stereographic.lats
         da_2d = np.zeros(lons.shape)
-        drainage = data_select.get_field_from_file(path, 'drainage')
+        drainage = data_select.get_field_from_file(path_to_analysis_driven, 'drainage')
         for i, j, theDa in zip(i_list, j_list, drainage):
             da_2d[i, j] = theDa
 
@@ -454,9 +467,9 @@ def main():
         stations = read_station_data()
         pickle.dump(stations, open(stations_dump, 'w'))
 
-   
-    reload(sys)
-    sys.setdefaultencoding('iso-8859-1')
+#   Did this to solve text encoding issues
+#    reload(sys)
+#    sys.setdefaultencoding('iso-8859-1')
 
 
     selected_stations = []
@@ -472,12 +485,17 @@ def main():
 
     current_subplot = 1
 
-    label1 = 'model'
-    label2 = 'observation'
+    label1 = "modelled"
+    label2 = "observed"
+    line1 = None
+    line2 = None
+    lines_for_mems = None
+    labels_for_mems = None
     override = {'fontsize': 24}
     fig.subplots_adjust(hspace = 0.9, wspace = 0.4, top = 0.9)
 
-    
+
+
 
     index_objects = []
     for index, i, j in zip( range(len(i_list)) , i_list, j_list):
@@ -485,6 +503,11 @@ def main():
 
     #sort by latitude
     index_objects.sort( key = lambda x: x.j, reverse = True)
+
+    #simulation id to continuous data map
+    simIdToContData = {}
+    for the_id in members.all_current:
+        simIdToContData[the_id] = {}
 
     for indexObj in index_objects:
         i = indexObj.i
@@ -556,6 +579,14 @@ def main():
                     if t.year > year: break
                     if t.year < year: continue
                     continuous_model_data[t] = data[t_index, index]
+                #fill the map sim id to cont model data
+                for the_id in members.current_ids:
+                    #save model data
+                    for t_index, t in enumerate(simIdToTimes[the_id]):
+                        if t.year > year: break
+                        if t.year < year: continue
+                        simIdToContData[the_id][t] = simIdToData[the_id][t_index, index]
+
 
         #if there is no continuous observations for the period
         if not len(continuous_station_data): continue
@@ -585,6 +616,10 @@ def main():
         stamp_dates = []
         mean_data_model = []
         mean_data_station = []
+        simIdToMeanModelData = {}
+        for the_id in members.all_current:
+            simIdToMeanModelData[the_id] = []
+
         for day_number in xrange(365):
             the_day = start_day + day_number * data_step
             stamp_dates.append(the_day)
@@ -592,15 +627,25 @@ def main():
             model_data_for_day = []
             station_data_for_day = []
 
+            #select model data for each simulation, day
+            #and then save mean for each day
+            simIdToModelDataForDay = {}
+            for the_id in members.current_ids:
+                simIdToModelDataForDay[the_id] = []
+
             for year in xrange(start_year, end_year + 1):
                 the_date = datetime(year, the_day.month, the_day.day, the_day.hour, the_day.minute, the_day.second)
                 if continuous_station_data.has_key(the_date):
                     model_data_for_day.append(continuous_model_data[the_date])
                     station_data_for_day.append(continuous_station_data[the_date])
+                    for the_id in members.current_ids:
+                        simIdToModelDataForDay[the_id].append(simIdToContData[the_id][the_date])
 
             assert len(station_data_for_day) > 0
             mean_data_model.append(np.mean(model_data_for_day))
             mean_data_station.append(np.mean(station_data_for_day))
+            for the_id in members.current_ids:
+                simIdToMeanModelData[the_id].append(np.mean(simIdToModelDataForDay[the_id]))
 
 
 
@@ -609,11 +654,30 @@ def main():
         current_subplot += 1
 
 
-        line1, = ax.plot(stamp_dates, mean_data_model,color = "blue", linewidth = 3)
+        line1, = ax.plot(stamp_dates, mean_data_model, linewidth = 3, color = "b")
 
         upper_model = np.max(mean_data_model)
 
-        line2, = ax.plot(stamp_dates, mean_data_station, color = 'r', linewidth = 3)
+        line2, = ax.plot(stamp_dates, mean_data_station, linewidth = 3, color = "r")
+
+
+        #plot member simulation data
+        lines_for_mems = []
+        labels_for_mems = []
+        for the_id in members.current_ids:
+            the_line, = ax.plot(stamp_dates, simIdToMeanModelData[the_id], "--", linewidth = 3)
+            lines_for_mems.append(the_line)
+            labels_for_mems.append(the_id)
+
+
+        ##calculate mean error
+        means_for_members = []
+        for the_id in members.current_ids:
+            means_for_members.append(np.mean(simIdToMeanModelData[the_id]))
+        the_error = ( np.mean(means_for_members) - np.mean(mean_data_station) ) / np.mean(mean_data_station) * 100
+        print "mean model error (%s): (m-o)/o * 100 %% = %.2f" % (station.id, the_error)
+
+
 
         upper_station = np.max(mean_data_station)
 
@@ -661,15 +725,28 @@ def main():
         )
 
 
-    lines = (line1, line2)
 
-    fig.legend(lines, (label1, label2), 'upper center')
-    fig.text(0.05, 0.5, 'STREAMFLOW (${\\rm m^3/s}$)',
+
+
+    lines = [line1]
+    lines.extend(lines_for_mems)
+    lines.append(line2)
+    lines = tuple( lines )
+
+
+    labels = [label1]
+    labels.extend(labels_for_mems)
+    labels.append(label2)
+    labels = tuple(labels)
+
+    fig.legend(lines, labels, 'lower right', ncol = 1)
+    fig.text(0.05, 0.5, 'Streamflow (${\\rm m^3/s}$)',
                   rotation=90,
                   ha = 'center', va = 'center'
                   )
 
-    fig.savefig('performance_error.pdf')
+    fig.savefig('performance_error.png')
+    plt.tight_layout()
 
 
 
@@ -685,9 +762,10 @@ def main():
                         grid_lons, grid_lats)
 
 
-    do_plot_selected_stations = False
+    do_plot_selected_stations = True
     if do_plot_selected_stations:
-        plot_selected_stations(selected_stations)
+        plot_selected_stations(selected_stations, use_warpimage=False, plot_ts = False,
+                               i_list = i_list, j_list = j_list)
     #plot_drainage_scatter(selected_stations, grid_drainages)
 
 
@@ -704,11 +782,15 @@ def plot_station_positions(id_list = None, save_to_file = True, use_warpimage = 
                            use_warpimage=use_warpimage, basemap=the_basemap)
 
 
+from diagnose_ccc import bedrock_depth
 def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = True,
-                           use_warpimage = True, basemap = None):
+                           use_warpimage = True, basemap = None,
+                           i_list = None, j_list = None
+                           ):
     """
     document me
     """
+    plt.figure()
     if basemap is None:
         the_basemap = polar_stereographic.basemap
     else:
@@ -725,7 +807,9 @@ def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = Tru
     #basemap.drawlsmask(land_color='none', ocean_color='aqua',lakes=True)
 
 #   basemap.drawrivers(color = 'blue')
-#    plot_basin_boundaries_from_shape(basemap, 1)
+
+
+    the_basemap.drawcoastlines()
     the_xs = []
     the_ys = []
     for station in selected_stations:
@@ -743,36 +827,47 @@ def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = Tru
         if station.id in ['081007']:
             xtext = 0.97 * x
 
-        if station.id in ['093801']:
-            ytext = 0.97 * y
-            xtext = 0.97 * x
+#        if station.id in ['093801']:
+#            ytext = 0.97 * y
+#            xtext = 0.97 * x
 
         the_xs.append(x)
         the_ys.append(y)
 
         plt.annotate(station.id, xy = (x, y), xytext = (xtext, ytext),
-                     bbox = dict(facecolor = 'white')
+                     bbox = dict(facecolor = 'white'), weight = "bold"
                      #arrowprops=dict(facecolor='black', shrink=0.001)
                      )
-    the_basemap.scatter(the_xs,the_ys, c = 'r', s = 100, marker='^', linewidth = 0.5, alpha = 1)
+
+    plot_basin_boundaries_from_shape(the_basemap, plotter=plt, linewidth=2.1)
+    the_basemap.scatter(the_xs,the_ys, c = 'r', s = 400, marker='^', linewidth = 0.5, alpha = 1, zorder = 5)
+
+
+
+    #plot the field of bedrock depth in meters
+#    x, y = the_basemap(polar_stereographic.lons, polar_stereographic.lats)
+#    bedrock_field = bedrock_depth.get_bedrock_depth_amno_180x172()
+#    bedrock_field = np.ma.masked_where(bedrock_field < 0, bedrock_field)
+#    #the_basemap.contourf(x, y, bedrock_field)
+#    the_basemap.pcolormesh(x, y, bedrock_field)
+#    cb = plt.colorbar(shrink = 0.7)
+    #cb.set_label("m")
 
 
 
 
 
     if save_to_file:
-        xmin, xmax = plt.xlim()
-        ymin, ymax = plt.ylim()
+        x_interest = polar_stereographic.xs[i_list, j_list]
+        y_interest = polar_stereographic.ys[i_list, j_list]
+        x_min, x_max = x_interest.min(), x_interest.max()
+        y_min, y_max = y_interest.min(), y_interest.max()
+        dx = 0.1 * ( x_max - x_min )
+        dy = 0.1 * ( y_max - y_min )
 
-        xmin = (xmin + xmax) / 2.0
-        ymax = (ymin + ymax) / 2.0
-
-        ymin = 0.7 * ymin + 0.3 * ymax
-
-        plt.xlim(xmin, xmax)
-        plt.ylim(ymin, ymax)
-
-        plt.savefig('selected_stations.pdf',  bbox_inches='tight')
+        plt.xlim(x_min - dx, x_max + dx)
+        plt.ylim(y_min - dy, y_max + dy)
+        plt.savefig('selected_stations.png',  bbox_inches='tight')
 
     if plot_ts:
         plt.figure()

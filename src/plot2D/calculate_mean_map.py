@@ -1,36 +1,33 @@
+from matplotlib.patches import Polygon
+from plot2D import bootstrap_for_mean, bootstrap_for_mean_merged
+from plot2D import ttest_for_mean_of_merged
+from shape.basin_boundaries import plot_basin_boundaries_from_shape
+
 __author__="huziy"
 __date__ ="$6 oct. 2010 21:06:01$"
 
 import application_properties
-import os
 import matplotlib.pyplot as plt
-import numpy as np
-from numpy import ma
-
-from netCDF4 import Dataset
-from math import *
-
-from datetime import datetime
-
-import pylab
-#from util.geo.ps_and_latlon import *
-from math import *
-from util.plot_utils import draw_meridians_and_parallels
-import matplotlib as mpl
-
-from readers.read_infocell import *
-
-from scipy.stats import ttest_ind
-
+from math import sqrt
 import data.data_select as data_select
+import pylab
+import matplotlib as mpl
+from datetime import datetime
+import os
+from data import members
+import numpy as np
+from util import plot_utils
+import gevfit.matplotlib_helpers.my_colormaps as my_cm
+
+
 
 inches_per_pt = 1.0 / 72.27               # Convert pt to inch
 golden_mean = (sqrt(5) - 1.0) / 2.0       # Aesthetic ratio
 fig_width = 1000 * inches_per_pt          # width in inches
 fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, 2 * fig_height]
+fig_size = [fig_width, fig_height]
 
-font_size = 20
+font_size = 35
 params = {
         'axes.labelsize': font_size,
         'font.size':font_size,
@@ -41,11 +38,11 @@ params = {
         'figure.figsize': fig_size
         }
 
-pylab.rcParams.update(params)
+
 
 
 #set current directory to the root directory of the project
-application_properties.set_current_directory()
+
 
 from plot2D.map_parameters import polar_stereographic
 from matplotlib.ticker import LinearLocator
@@ -56,13 +53,6 @@ xs = polar_stereographic.xs
 ys = polar_stereographic.ys
 m = polar_stereographic.basemap
 
-def zoom_to_qc():
-    ymin, ymax = plt.ylim()
-    plt.ylim(ymin + 0.05 * (ymax - ymin) , ymax * 0.25)
-
-    xmin, xmax = plt.xlim()
-    plt.xlim(xmin + (xmax - xmin) * 0.55, 0.72*xmax)
-
 
 
 def plot_data(data, i_array, j_array, name='AEX', title = None, digits = 1,
@@ -70,15 +60,18 @@ def plot_data(data, i_array, j_array, name='AEX', title = None, digits = 1,
                                       minmax = (None, None),
                                       units = '%',
                                       colorbar_orientation = 'vertical',
-                                      draw_colorbar = True
+                                      draw_colorbar = True,
+                                      basemap = None, axes = None,
+                                      impose_lower_limit = None, upper_limited = False
+
                                       ):
 
 
 
-    if name != None:
+    if name is not None:
         plt.figure()
 
-    to_plot = ma.masked_all((n_cols, n_rows))
+    to_plot = np.ma.masked_all((n_cols, n_rows))
     for index, i, j in zip( range(len(data)), i_array, j_array):
         to_plot[i, j] = data[index]
 
@@ -87,37 +80,111 @@ def plot_data(data, i_array, j_array, name='AEX', title = None, digits = 1,
     
   #  m.pcolor(xs, ys, to_plot, cmap = mpl.cm.get_cmap('RdBu_r'))
 
+    if basemap is None:
+        the_basemap = m
+    else:
+        the_basemap = basemap
 
-    m.pcolormesh(xs, ys, to_plot.copy(), cmap = color_map,
+    image = the_basemap.pcolormesh(xs, ys, to_plot.copy(), cmap = color_map,
                                           vmin = minmax[0],
-                                          vmax = minmax[1],)
+                                          vmax = minmax[1], ax = axes)
 
 
 
     #ads to m fields basins and basins_info which contain shapes and information
  #   m.readshapefile('data/shape/contour_bv_MRCC/Bassins_MRCC_utm18', 'basins')
  #   m.scatter(xs, ys, c=to_plot)
-    plot_basin_boundaries_from_shape(m, linewidth = 1)
-    m.drawrivers(linewidth = 0.5)
-    m.drawcoastlines(linewidth = 0.5)
-    draw_meridians_and_parallels(m, step_degrees = 30)
+    plot_basin_boundaries_from_shape(m, axes=axes, linewidth = 2.1)
+    the_basemap.drawrivers(linewidth = 0.5, ax = axes)
+    the_basemap.drawcoastlines(linewidth = 0.5, ax = axes)
+    plot_utils.draw_meridians_and_parallels(the_basemap, step_degrees = 30)
+
+
+
+    axes.set_title(title if title is not None else name)
+
+    #zoom_to_qc()
+    x_min, x_max, y_min, y_max = plot_utils.get_ranges(xs[i_array, j_array], ys[i_array, j_array])
+    axes.set_xlim(x_min, x_max)
+    axes.set_ylim(y_min, y_max)
+
 
     if draw_colorbar:
-        int_ticker = LinearLocator()
-        cb = plt.colorbar(ticks = int_ticker, orientation = colorbar_orientation, format = '%d')
-        cb.ax.set_ylabel(units)
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-    override = {'fontsize': 25,
-                  'verticalalignment': 'baseline',
-                  'horizontalalignment': 'center'}
+        divider = make_axes_locatable(axes)
+        cax = divider.append_axes("right", "8%", pad="3%")
+        int_ticker = LinearLocator(numticks = color_map.N + 1)
+        cb = axes.figure.colorbar(image, ticks = int_ticker,
+                          orientation = colorbar_orientation,
+                          format = '%d', cax = cax, ax=axes, drawedges = True)
+
+        cb.ax.set_title(units)
+        #cb.outline.remove()
+        bottom, top = cb.ax.get_ylim()
+        left, right = cb.ax.get_xlim()
+        print bottom, top, left, right
 
 
-    plt.title(title if title != None else name, override)
+        if impose_lower_limit is None:
+            new_bottom = min( np.min(data), 0 )
+        else:
+            new_bottom = impose_lower_limit
+        #new_bottom = np.floor( new_bottom / 10.0 ) * 10.0
 
-    zoom_to_qc()
 
-    if name != None:
-        plt.savefig(name + '.png')
+        new_bottom = np.abs((new_bottom - minmax[0]) / (float(minmax[1] - minmax[0])))
+
+        new_bottom = plot_utils.get_closest_tick_value(color_map.N + 1, new_bottom) - 1.0e-4
+
+
+
+        print new_bottom
+        cb.ax.set_ylim(bottom = new_bottom)
+        left, right = cb.ax.get_xlim()
+        bottom, top = cb.ax.get_ylim()
+
+        #cb.ax.set_xlim(left = 0, right = 0.8)
+        cb.outline.set_visible( False )
+
+        if upper_limited:
+            cl = cb.ax.get_yticklabels()
+            labels = []
+            for text in cl:
+                labels.append(text.get_text())
+
+            labels[-1] = '$\\geq$' + labels[-1]
+            cb.ax.set_yticklabels(labels)
+
+
+#        if not (impose_lower_limit is None):
+#            cl = cb.ax.get_yticklabels()
+#            labels = []
+#            for text in cl:
+#                labels.append(text.get_text())
+#
+#            select_index = -1
+#            for index, the_label in enumerate(labels):
+#                if impose_lower_limit == float(the_label):
+#                    select_index = index
+#                    break
+#
+#            if select_index >= 0:
+#                labels[select_index] = '$\\leq$' + labels[select_index]
+#            cb.ax.set_yticklabels(labels)
+#
+
+#        verts = np.zeros((4,2))
+#        verts[0,0], verts[0,1] = left, bottom
+#        verts[1,0], verts[1,1] = right, bottom
+#        verts[2,0], verts[2,1] = right, top
+#        verts[3,0], verts[3,1] = left, top
+#
+#        cb.ax.add_patch(Polygon(xy=verts, facecolor="none",edgecolor="k",linewidth=2))
+#        #cb.draw_all()
+        #cb.ax.set_xlim(left = 0, right = 1)
+        #cb.ax.axhspan(0, 40)
+
 
 
 
@@ -125,9 +192,12 @@ def plot_data(data, i_array, j_array, name='AEX', title = None, digits = 1,
 def get_meanof_means_and_stds_from_files(files):
     mean = None
     stdevs = None
+
+    if not len(files): return
+
     for path in files:
-        data = get_data_from_file(path)
-        if mean == None:
+        data = data_select.get_data_from_file(path)
+        if mean is None:
             mean = np.zeros(data.shape[1])
             stdevs = np.zeros(data.shape[1])
             
@@ -145,7 +215,8 @@ def get_meanof_means_and_stds_from_files(files):
 def get_dispersion_between_members(files):
     datas = []
     for path in files:
-        data = get_data_from_file(path)
+        data = data_select.get_data_from_file(path)
+
         datas.append(data)
 
     nt, ncell = datas[0].shape
@@ -159,211 +230,92 @@ def get_dispersion_between_members(files):
 
 
 
-def get_indices(folder):
-    for file in os.listdir(folder):
-        filename = file
-        if filename.startswith('.'): continue
-        break
-
-    path = os.path.join( folder, filename)
-    print path
-    ncfile = Dataset(path)
-    result = ncfile.variables['x-index'][:], ncfile.variables['y-index'][:]
-    ncfile.close()
-    return result
-
-
 
 def plot_diff_between_files(file1, file2, i_array, j_array):
     data1 = data_select.get_data_from_file(file1)
     data2 = data_select.get_data_from_file(file2)
     the_diff = np.mean(data2 - data1, axis = 0)
 
-    plot_data(the_diff, i_array, j_array, name = 'the_diff', title='AEX, difference between \n %s \n and \n %s' % (file2, file1))
+    plot_data(the_diff, i_array, j_array, name = 'the_diff',
+              title='AEX, difference between \n %s \n and \n %s' % (file2, file1))
 
     pass
 
-def plot_diff(folder = 'data/streamflows/VplusFmask_newton',
-              current_start_date = datetime(1970,1,1,0,0,0),
-              current_end_date   = datetime(1999,12,31,0,0,0),
-              future_start_date  = datetime(2041,1,1,0,0,0),
-              future_end_date    = datetime(2070,12,31,0,0,0),
+
+def print_means_to_file(current_array, future_array):
+    """
+    Write annual means to files
+    one file per member, one line for 30 annual means
+    """
+    for i in xrange(current_array.shape[0]):
+        f_c = open("c_%d.csv" % i, mode="w")
+        f_f = open("f_%d.csv" % i, mode="w")
+        for pos in xrange(current_array.shape[2]):
+            f_c.write(",".join(map(str, current_array[i,:,pos])) + "\n")
+            f_f.write(",".join(map(str, future_array[i,:,pos])) + "\n")
+
+        f_c.close()
+        f_f.close()
+
+
+
+def plot_diff(folder = "data/streamflows/hydrosheds_euler9",
               plot_f_and_c_means_separately = False):
-
-
-
-    '''
+    """
     Plot difference between the means for future and current climate
-    '''
-    current = []
-    future = []
-    
-    for file in os.listdir(folder):
-        if file.startswith('.'): continue
-
-        path = folder + os.path.sep + file
-        if '2041' in file:
-            future.append(path)
-        elif 'aex' not in file:
-            current.append(path)
-
-    i_array, j_array = get_indices(folder)
-
-    n_grid_cells = len(i_array)
-
-    #save data for current climate in one array
-    current_array = None
-    for path in current:
-        print path
-        #read data from file
-        data, times, x_indices, y_indices = data_select.get_data_from_file(path)
-        #calculate annual means for each grid point
-        the_means = data_select.get_annual_means(data, times,
-                                    start_date = current_start_date,
-                                    end_date = current_end_date)
-
-        print len(the_means)
-
-        for year, the_mean in the_means.iteritems():
-            if current_array == None:
-                current_array = the_mean
-            else:
-                current_array = np.append(current_array, the_mean)
-
-    current_array = np.reshape(current_array, (-1, n_grid_cells))
+    """
 
 
-    #save data for futuure climate in one array
-    future_array = None
-    for path in future:
-        print path
-        #read data from file
-        data, times, x_indices, y_indices = data_select.get_data_from_file(path)
-        #calculate annual means for each grid point
-        the_means = data_select.get_annual_means(data, times,
-                                    start_date = future_start_date,
-                                    end_date = future_end_date)
-        print len(the_means)
-        if len(the_means) < 30:
-            print sorted(the_means.keys())
+    file_name = None
+    for f_name in os.listdir(folder):
+        if f_name.startswith( "aex" ):
+            file_name = f_name
 
-        for year, the_mean in the_means.iteritems():
-            if future_array == None:
-                future_array = the_mean
-            else:
-                future_array = np.append(future_array, the_mean)
+    #get indices of interest
+    x_indices, y_indices = data_select.get_indices_from_file(path=os.path.join(folder, file_name))
 
-    future_array = np.reshape(future_array, (-1, n_grid_cells))
+    ##get significance and percentage changes
+    #signific_vector, change = bootstrap_for_mean.get_significance_for_change_in_mean_over_months()
+    #signific_vector, change = ttest_for_mean_of_merged.get_significance_and_changes_for_months()
+    signific_vector, change = bootstrap_for_mean_merged.get_significance_for_change_in_mean_of_merged_over_months()
 
-    ttest, p = ttest_ind(current_array, future_array, axis = 0)
-
-    to_plot_5 = np.ma.masked_all((n_cols, n_rows))
-    for pi, i, j in  zip(p, i_array, j_array):
-        if pi >= 0.05:
-            to_plot_5[i, j] = 1
-
-
-
-    to_plot_1 = np.ma.masked_all((n_cols, n_rows))
-    for pi, i, j in  zip(p, i_array, j_array):
-        if pi >= 0.01:
-            to_plot_1[i, j] = 1
-
-
-
-    print p
-
-    print 'future:(nt, npos) = (%d, %d)' % future_array.shape
-    print 'current:(nt, npos) = (%d, %d)' % current_array.shape
-
-
-    future_mean = future_array.mean(axis = 0)
-    current_mean = current_array.mean(axis = 0)
-
+    signific_vector = signific_vector.astype(int)
 
     #start plotting (f-c)/c * 100
 
     plt.subplots_adjust(hspace = 0.2)
 
     #significance level 5%
-    plt.subplot(2,1,1)
-    plot_data(  (future_mean - current_mean)/current_mean * 100.0,
-                i_array, j_array, name = None,
-                color_map = mpl.cm.get_cmap('RdBu', 10), minmax = (-40, 40),
-                title = 'significance level: 5%'
+    plot_axes = plt.subplot(1,1,1)
+    plot_data(  change,
+                x_indices, y_indices, name = None,
+                color_map = my_cm.get_red_blue_colormap(ncolors = 8),
+                #mpl.cm.get_cmap('RdBu', 16),
+                minmax = (-40, 40),
+                title = '', axes=plot_axes
                 )
 
+    color_map = mpl.cm.get_cmap(name="gray", lut=3)
 
-    m.pcolormesh(xs, ys, 0.5 * to_plot_5, cmap = 'gray', vmin = 0, vmax = 1)
+    signific_vector = np.ma.masked_where(signific_vector == 1, signific_vector)
+    plot_data(signific_vector, x_indices, y_indices, name = None, title="",
+            minmax = (-1, 1), color_map=color_map, draw_colorbar=False, axes=plot_axes)
 
-    #significance level 1%
-    plt.subplot(2,1,2)
-    plot_data(  (future_mean - current_mean)/current_mean * 100.0,
-                i_array, j_array, name = None,
-                color_map = mpl.cm.get_cmap('RdBu', 10), minmax = (-40, 40),
-                title = 'significance level: 1%'
-                )
+    plt.tight_layout()
 
-   
-    m.pcolormesh(xs, ys, 0.5 * to_plot_1, cmap = 'gray', vmin = 0, vmax = 1)
-    plt.savefig('future-current(sign).png', bbox_inches = 'tight')
+    plt.savefig('future-current(sign).png')
 
 
-    if plot_f_and_c_means_separately:
-        plt.figure()
-
-        print 'plotting means'
-
-        plt.subplot(2,1,1)
-        plot_data(  current_mean,
-                    i_array, j_array, title = 'current mean river discharge (${\\rm m^3/s}$)', name = None,
-                    color_map = mpl.cm.get_cmap('RdBu', 20), minmax = (0, None), colorbar_orientation = 'vertical')
-
-
-        plt.subplot(2,1,2)
-        plot_data(  future_mean,
-                    i_array, j_array, title = 'future mean river discharge (${\\rm m^3/s}$)', name = None,
-                    color_map = mpl.cm.get_cmap('RdBu', 20), minmax = (0, None), colorbar_orientation = 'vertical'
-                    )
-
-
-        plt.savefig('future_and_current_means.png', bbox_inches='tight')
-    pass
-
-
-
-def plot_maximums(data_folder = 'data/streamflows/hydrosheds_euler3'):
-    k = 1
-    plt.figure()
-    i_array, j_array = get_indices(data_folder)
-    for f in os.listdir(data_folder):
-        if f.startswith('.'):
-            continue
-
-        file = Dataset(os.path.join(data_folder, f))
-        streamflow = file.variables['water_discharge'][:]
-        file.close()
-
-        maximum_field = np.max(streamflow, axis = 0)
-        
-
-        plt.subplot(6,2,k)
-        plot_data(maximum_field,i_array, j_array, title = f , name = None,
-                    color_map = mpl.cm.get_cmap('RdBu', 20), minmax = (None, None), colorbar_orientation = 'vertical')
-        print k
-        k += 1
-    plt.savefig('maximums.png', bbox_inches = 'tight')
-    pass
 
 
 
 if __name__ == "__main__":
-
+    pylab.rcParams.update(params)
 #    data = get_data_from_file('data/streamflows/fdirv1/aex_discharge_1970_01_01_00_00.nc')
 #    i_array, j_array = get_indices()
 #    plot_data(np.std(data, axis = 0) / np.mean(data, axis = 0) * 100, i_array , j_array, name = 'aex_temp_variability',
 #    title = 'AEX (std/mean * 100 %)')
-
+    application_properties.set_current_directory()
     print os.getcwd()
     plot_diff(folder = 'data/streamflows/hydrosheds_euler9')
 #    plot_maximums(data_folder = 'data/streamflows/hydrosheds_euler7')

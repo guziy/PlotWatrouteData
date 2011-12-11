@@ -1,4 +1,5 @@
-from matplotlib.axes import Axes
+import bootstrap_for_mean, bootstrap_for_mean_merged
+import ttest_for_mean_of_merged
 
 __author__="huziy"
 __date__ ="$Aug 31, 2011 3:12:13 PM$"
@@ -17,56 +18,24 @@ import gevfit.matplotlib_helpers.my_colormaps as my_cm
 
 import util.plot_utils as plot_utils
 from scipy import stats
+import calculate_mean_map
 
 #Plot a panel plot with 4 subplots
 #DJF, ,,, (winter, spring, summer and autumn)
 
-def calculate_seasonal_means(times, data, month_indices = range(1,13)):
-    """
-    Calculate seasonal means, for the specified months,
-    means for the whole domain.
-    month_indices is a list containing zero based indices of months
-    Jan = 1,..., Dec = 12
-    """
-    result = {}
-    for i, t in enumerate(times):
-        if t.month not in month_indices:
-            continue
-
-        if result.has_key(t.year):
-            result[t.year].append(data[i, :])
-        else:
-            result[t.year] = [data[i,:]]
-
-    result1 = []
-    for data in result.values():
-        data1 = np.array(data)
-        result1.append(np.mean(data1, axis = 0)) #mean over a winter of each year for all points
-
-    return result1
+import matplotlib.gridspec as gridspec
 
 
-def get_member_to_path_mapping(path_to_folder = 'data/streamflows/hydrosheds_euler9'):
-    member_to_path = {}
-
-    file_names = os.listdir(path_to_folder)
-    for current_id in members.current_ids:
-        future_id = members.current2future[current_id]
-        for fName in file_names:
-            the_path = os.path.join(path_to_folder, fName)
-            if current_id in fName:
-                member_to_path[current_id] = the_path
-            if future_id in fName:
-                member_to_path[future_id] = the_path
-            if members.control_id in fName:
-                member_to_path[members.control_id] = the_path
-
-    return member_to_path
 
 
 def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamflows/hydrosheds_euler9',
-                                                     months = None, subplot_dims = None,
-                                                     subplot_count = 1, label = ""):
+                                                     months = None, label = "",
+                                                     cb_axes = None,
+                                                     plot_axes = None,
+                                                     impose_lower_limit = None,
+                                                     upper_limited = False,
+                                                     minmax = None
+                                                     ):
 
     """
 
@@ -75,88 +44,65 @@ def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamf
         print "please specify months"
         return
 
-    member_to_path = get_member_to_path_mapping(path_to_folder = folder_path)
-
-    current_data = []
-    future_data = []
-    i_indices = None
-    j_indices = None
-    for current_id in members.current_ids:
-        future_id = members.current2future[current_id]
-
-        path_c = member_to_path[current_id]
-        path_f = member_to_path[future_id]
-
-        stfl_c, times_c, i_indices, j_indices = data_select.get_data_from_file(path_c)
-        stfl_f, times_f, i_indices, j_indices = data_select.get_data_from_file(path_f)
-
-        current_data.extend(calculate_seasonal_means(times_c, stfl_c, month_indices = months))
-        future_data.extend(calculate_seasonal_means(times_f, stfl_f, month_indices = months))
+    fileName = None
+    for fName in os.listdir(folder_path):
+        if fName.startswith( "aex" ):
+            fileName = fName
 
 
-    current_data = np.array(current_data)
-    future_data = np.array(future_data)
-
-    c_mean = np.mean(current_data, axis = 0)
-    f_mean = np.mean(future_data, axis = 0)
-    print c_mean.shape
-
-    t_value, p_value = stats.ttest_ind(current_data, future_data, axis = 0)
-
-    change = (f_mean - c_mean) / c_mean * 100
+    i_indices, j_indices = data_select.get_indices_from_file(path = os.path.join(folder_path, fileName))
 
     xs = polar_stereographic.xs
     ys = polar_stereographic.ys
     basemap = polar_stereographic.basemap
 
+    #get mean changes along with its significance
+    #ensemble mean
+    significance, change = bootstrap_for_mean.get_significance_for_change_in_mean_over_months(months=months)
+    #significance, change = ttest_for_mean_of_merged.get_significance_and_changes_for_months(months=months)
+    #merged
+    #significance, change = bootstrap_for_mean_merged.get_significance_for_change_in_mean_of_merged_over_months(months= months)
 
 
-        #zoom to domain
-    to_plot = np.ma.masked_all(xs.shape)
-    for i, j, v_mean in zip(i_indices, j_indices, c_mean):
-        to_plot[i,j] = v_mean
 
-
-    selected_x = xs[~to_plot.mask]
-    selected_y = ys[~to_plot.mask]
-    marginx = abs(np.min(selected_x) * 5.0e-2)
-    marginy = abs(np.min(selected_y) * 5.0e-2)
-
+    #zoom to domain
+    selected_x = xs[i_indices, j_indices]
+    selected_y = ys[i_indices, j_indices]
+    x_min, x_max, y_min, y_max = plot_utils.get_ranges(selected_x, selected_y)
 
     #plot mean change
-    plt.subplot(subplot_dims[0], subplot_dims[1], subplot_count)
-    plt.title('Mean flow change, {0}'.format(label))
-    to_plot = np.ma.masked_all(xs.shape)
-    for i, j, the_change in zip(i_indices, j_indices, change):
-        to_plot[i, j] = the_change
 
-    basemap.pcolormesh(xs, ys, to_plot, cmap = my_cm.get_red_blue_colormap(ncolors = 6),
-                       vmax = 150, vmin = -150)
-    basemap.drawcoastlines()
-    cb = plt.colorbar(ticks = LinearLocator(numticks = 7), format = '%d')
-    put_upper_limited_label(cb)
-    bb.plot_basin_boundaries_from_shape(basemap, plotter = plt, linewidth = 1, edge_color = 'k')
-    plt.xlim(np.min(selected_x) - marginx, np.max(selected_x) + marginx)
-    plt.ylim(np.min(selected_y) - marginy, np.max(selected_y) + marginy)
+    print "plotting"
+    plot_axes.set_title('{0}'.format(label))
+
+    calculate_mean_map.plot_data(change, i_indices, j_indices, minmax = minmax, title=label, name = None,
+                                 color_map = my_cm.get_red_blue_colormap(ncolors = 10),
+                                 draw_colorbar=True, basemap=basemap, axes=plot_axes,
+                                 impose_lower_limit = impose_lower_limit,
+                                 upper_limited = upper_limited
+                                 )
 
 
-    #plot p-value
-    plt.subplot(subplot_dims[0], subplot_dims[1], subplot_count + 1)
-    plt.title('p-value, {0}'.format(label))
-    to_plot = np.ma.masked_all(xs.shape)
-    for i, j, pv in zip(i_indices, j_indices, p_value):
-        to_plot[i, j] = pv
 
-    basemap.pcolormesh(xs, ys, to_plot, cmap = mpl.cm.get_cmap('jet', 5), vmax = 0.2)
-    basemap.drawcoastlines()
-    cb = plt.colorbar(ticks = LinearLocator(numticks = 6), format = '%.2f')
-    put_upper_limited_label(cb)
+    plot_significance = True
+    if plot_significance:
+        to_plot = np.ma.masked_all(xs.shape)
+        significance = significance.astype(int)
+        significance = np.ma.masked_where(significance == 1, significance)
+        for the_significance, i, j in zip(significance, i_indices, j_indices):
+            to_plot[i, j] = the_significance
 
-    bb.plot_basin_boundaries_from_shape(basemap, plotter = plt, linewidth = 1, edge_color = 'k')
-    plt.xlim(np.min(selected_x) - marginx, np.max(selected_x) + marginx)
-    plt.ylim(np.min(selected_y) - marginy, np.max(selected_y) + marginy)
-    print current_data.shape
-    pass
+        basemap.pcolormesh( xs, ys, to_plot.copy(), cmap = mpl.cm.get_cmap(name = "gray", lut = 3),
+                           vmin = -1, vmax = 1, ax = plot_axes)
+
+#    plt.xlim(x_min, x_max)
+#    plt.ylim(y_min, y_max)
+
+
+
+
+
+
 
 def put_upper_limited_label(the_colorbar):
     """
@@ -169,24 +115,47 @@ def put_upper_limited_label(the_colorbar):
     the_colorbar.ax.set_yticklabels(ticks)
 
 
-
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 def calculate_mean_change_and_plot_for_all_seasons():
     """
     calculate changes in seasonal means
     """
-    seasons = ["DJF", "MAM", "JJA", "SON"]
+
+    seasons = ["(b) Winter (DJF)",  "(c) Spring (MAM)", "(d) Summer (JJA)", "(e) Fall (SON)"]
     months = [(12,1,2), (3,4,5), (6,7,8), (9,10,11)]
     folder_path = 'data/streamflows/hydrosheds_euler9'
 
-    subplot_count = 1
-    plot_utils.apply_plot_params(aspect_ratio = 2)
-    for s, m in zip(seasons, months):
-        calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = folder_path,
-            months = m,  subplot_dims = (4,2), subplot_count = subplot_count, label = s
-        )
-        subplot_count += 2
 
-    plt.savefig('mean_seasonal_change.pdf', bbox_inches = 'tight')
+    gs = gridspec.GridSpec(3,2)
+    #gs.update()
+    plot_utils.apply_plot_params(width_pt= 800, font_size=15, aspect_ratio=2)
+    #plt.subplots_adjust( wspace = 0.0)
+    i = 0
+    for  row in xrange(1,3):
+        for col in xrange(2):
+            m = months[i]
+            s = seasons[i]
+            ax_plot = plt.subplot(gs[row, col])
+            calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = folder_path,
+                months = m, label = s, plot_axes = ax_plot, impose_lower_limit=-60.0, upper_limited=True,
+                minmax=(-100,100)
+            )
+            i += 1
+            print i, row, col
+
+    ax_plot = plt.subplot(gs[0, :])
+    calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = folder_path,
+                months = range(1,13), label = "(a) Annual", plot_axes = ax_plot, minmax=(-40, 40)
+            )
+
+
+#    divider = make_axes_locatable(ax_plot)
+#    ax_cb = divider.append_axes("right", "5%", pad="3%")
+#    plt.colorbar(cax=ax_cb)
+    print "laying out"
+    ax_plot.figure.tight_layout( w_pad=0)
+    print "saving"
+    ax_plot.figure.savefig('mean_seasonal_change.png')
     pass
 
 
