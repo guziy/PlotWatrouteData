@@ -1,4 +1,5 @@
-import ds
+from matplotlib.font_manager import FontProperties
+
 __author__="huziy"
 __date__ ="$23 mai 2010 13:59:05$"
 
@@ -41,24 +42,7 @@ from matplotlib.patches import RegularPolygon
 import util.plot_utils as plot_utils
 import wrf_static_data.read_variable as wrf
 
-inches_per_pt = 1.0 / 72.27               # Convert pt to inch
-golden_mean = (sqrt(5) - 1.0) / 2.0       # Aesthetic ratio
-fig_width = 1800 * inches_per_pt          # width in inches
-fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, fig_height]
-
-params = {
-        'axes.labelsize': 14,
-        'font.size':18,
-        'text.fontsize': 18,
-        'legend.fontsize': 14,
-        'xtick.labelsize': 16,
-        'ytick.labelsize': 16,
-        'figure.figsize': fig_size
-        }
-
-pylab.rcParams.update(params)
-
+from util import plot_utils
 
 #set current directory to the root directory of the project
 application_properties.set_current_directory()
@@ -177,13 +161,13 @@ def get_additional_cells(path, start_col = 90, start_row = 143):
             i_next, j_next = get_indices_of_next_cell(int(the_field.strip()), i, j)
 
             #if the cell was assigned from other source
-            if cells[i][j].next != None:
-                i = i + 1
+            if cells[i][j].next is not None:
+                i += 1
                 continue
             
             if i_next < 0 or j_next < 0:
                 cells[i][j].next = None
-                i = i + 1
+                i += 1
                 continue
 
 
@@ -191,9 +175,9 @@ def get_additional_cells(path, start_col = 90, start_row = 143):
             cells[i][j].id = 10
             cells[i][j].next = cells[i_next][j_next]
             cells[i_next][j_next].add_previous(cells[i][j])
-            
-            i = i + 1
-        j = j - 1
+
+            i += 1
+        j -= 1
         i = i0
 
 
@@ -253,11 +237,11 @@ def get_cells_from_infocell(path):
 
 
     for cell in temp_cells:
-        if cell.next != None:
+        if cell.next is not None:
             next_cell = cell.next
 
             #if the direction was already assigned from another source
-            if cells[cell.x][cell.y].next != None:
+            if cells[cell.x][cell.y].next is not None:
                 continue
             cells[cell.x][cell.y].set_next( cells[next_cell.x][next_cell.y] )
     pass
@@ -265,16 +249,16 @@ def get_cells_from_infocell(path):
 
 
 def get_index_distance(cell1, cell2):
-    '''
+    """
     get distance between 2 cells in index space
-    '''
+    """
     return ((cell1.x - cell2.x) ** 2 + (cell1.y - cell2.y) ** 2 ) ** 0.5
 
 
 def get_distance_along_flow(cell1, cell2):
-    '''
+    """
     get distance in index space between cell1 and cell2, along the flow
-    '''
+    """
     x = 0.0
     current = cell1
     while current != cell2:
@@ -285,9 +269,9 @@ def get_distance_along_flow(cell1, cell2):
 
 
 def read_elevations(path = 'data/infocell/amno_180x172_topo.nc'):
-    '''
+    """
     Read elevations for amno grid for amno grid 180x172
-    '''
+    """
     ncfile = Dataset(path)
     data = ncfile.variables['topography'][:]
 
@@ -316,10 +300,10 @@ def read_cell_area(path = 'data/infocell/amno_180x172_area.nc'):
 
 
 def calculate_slopes(min_slope = 1.0e-3):
-    '''
+    """
     Calculates channel slopes taking into account flow directions
     (use after the directions have been corrected)
-    '''
+    """
 
 
     METERS_PER_KM = 1000.0
@@ -333,7 +317,7 @@ def calculate_slopes(min_slope = 1.0e-3):
             current = cells[i][j]
             next = current.next
             current_lon, current_lat = lons[current.x, current.y], lats[current.x, current.y]
-            if next != None:
+            if next is not None:
                 number_of_slopes += 1
                 lon2, lat2 = lons[next.x, next.y], lats[next.x, next.y]
                 if current.area <= 0:
@@ -378,10 +362,10 @@ def calculate_slopes(min_slope = 1.0e-3):
 
 
 def write_cell(cell, file, format, final_cell):
-    '''
+    """
     write cell to file
-    '''
-    next = final_cell if (cell.next == None or cell.next.basin == None) else cell.next
+    """
+    next = final_cell if (cell.next is None or cell.next.basin is None) else cell.next
 
 
     i, j = cell.x, cell.y
@@ -389,7 +373,7 @@ def write_cell(cell, file, format, final_cell):
     #in order to force the model to calculate channel lengths inside the watroute model
     #cell.channel_length = -1
 
-    if i >= 0 and j >= 0:
+    if i >= 0 <= j:
         lon = lons[i,j]
         lat = lats[i,j]
     else:
@@ -412,16 +396,16 @@ def write_cell(cell, file, format, final_cell):
 
 
 def put_to_list(cell, the_list):
-    '''
+    """
     puts cell in the order to the list, first the
     cells upflow then downflow
-    '''
+    """
     
     if cell in the_list:
         return
     for prev in cell.previous:
 #        assert prev.basin != None
-        if prev.basin != None:
+        if prev.basin is not None:
             put_to_list(prev, the_list)
     the_list.append(cell)
     cell.id = len(the_list)
@@ -583,7 +567,7 @@ def plot_directions(cells, basemap = None, domain_mask = None):
         v = np.ma.masked_where(~(domain_mask == 1), v)
     x = np.ma.mean( np.ma.sqrt(np.ma.power(u, 2) + np.ma.power(v, 2)))
     print "arrow width = ", 0.1 * x
-    the_basemap.quiver(xs, ys, u, v, pivot = 'middle', scale = 1.2, width =  0.1 * x, units='xy')
+    the_basemap.quiver(xs, ys, u, v, pivot = 'middle', scale = 1.2, width =  0.08 * x, units='xy', color = "k")
     
  #   m.drawcoastlines(linewidth=0.5)
  #   draw_meridians_and_parallels(m, 20)
@@ -656,7 +640,7 @@ def plot_basins_separately(path, cells):
         plt.cla()
         m.drawcoastlines(linewidth = 0.5)
         m.scatter(xs, ys, c=to_plot, marker='s', s=100, linewidth = 0, alpha = 0.2)
-        m.quiver(xs, ys, u_plot, v_plot, scale = 5, width = 0.025 , units='inches')
+        m.quiver(xs, ys, u_plot, v_plot, scale = 5, width = 0.0125 , units='inches')
 
 
         override = {'fontsize': 14,
@@ -717,7 +701,7 @@ def plot_basins(sign_basins = True, save_to_file = False,
     else:
         b = basemap
 
-    
+
     x, y = b(lons, lats)
 
 
@@ -738,8 +722,11 @@ def plot_basins(sign_basins = True, save_to_file = False,
 
 
  #   b.scatter(x, y, c = to_plot, marker = 's', s = 200)
+
+ # uncomment to fill basins with colors
     b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
                   cmap = color_map, alpha = 0.4)
+
                   
 #    b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
 #                  cmap = color_map, alpha = 0.4)
@@ -748,7 +735,7 @@ def plot_basins(sign_basins = True, save_to_file = False,
     if draw_rivers:
         b.drawrivers()
 
-    plot_basin_boundaries_from_shape(b, linewidth = 1)
+    plot_basin_boundaries_from_shape(b, linewidth = 2.1)
     if save_to_file:
         plt.savefig("amno_quebec_basins.pdf", bbox_inches='tight')
 
@@ -810,10 +797,10 @@ def paint_all_points_with_directions(cells):
 
 IMAX = 'imax'; JMAX = 'jmax'; IMIN = 'imin'; JMIN = 'jmin'
 def get_indices_from_line(line):
-    '''
+    """
     Parses line of type <basin name>: i1, j1; i2, j2 ...
     returns basin and 2 lists: of is and js
-    '''
+    """
     i_list = []
     j_list = []
 
@@ -822,7 +809,7 @@ def get_indices_from_line(line):
     fields = line.split(':')
     basin = get_basin_for_name(fields[0].strip())
 
-    if basin == None:
+    if basin is None:
         print 'basin %s is not known ...' % fields[0].strip()
         return basin, i_list, j_list
 
@@ -859,24 +846,24 @@ def get_indices_from_line(line):
 
 
 def read_outlets(path='data/infocell/outlets.txt'):
-    '''
+    """
     read outlets for the basins, used in read_basins()
-    '''
+    """
     f = open(path)
     for line in f:
         if ':' not in line:
             continue
         basin, i_list, j_list = get_indices_from_line(line)
-        if basin != None:
+        if basin is not None:
             basin.set_exit_cells(i_list, j_list)
     #assign next cells for outlets
     read_next_for_outlets()
     pass
 
 def read_next_for_outlets(path = 'data/infocell/next_for_outlets.txt'):
-    '''
+    """
     read next cells for outlets (used inside read_outlets)
-    '''
+    """
 
     for basin in basins:
         for outlet in basin.exit_cells:
@@ -932,7 +919,7 @@ def get_domain_mask(path = 'data/infocell/amno180x172_basins.nc'):
     ds = Dataset(path)
     result = None
     for v in ds.variables.values():
-        if result == None:
+        if result is None:
             result = v[:]
         else:
             result += v[:]
@@ -942,9 +929,9 @@ def get_domain_mask(path = 'data/infocell/amno180x172_basins.nc'):
 
 
 def get_basin_for_name(name):
-    '''
+    """
     returns basin object for the specified name
-    '''
+    """
     for basin in basins:
         if basin.name == name:
             return basin
@@ -971,9 +958,9 @@ def check_basin_intersections():
                     print the_cell.coords()
 
 def delete_basins(names):
-    '''
+    """
     Deletes the basins with names from the list of basins
-    '''
+    """
     to_delete = []
     for name in names:
         for basin in basins:
@@ -1012,24 +999,24 @@ def get_neighbors_of(cell):
 
 
 def distance(cell, cell_list):
-    '''
+    """
     distance between the cell and the cell_list
-    '''
+    """
     for i, the_cell in enumerate(cell_list):
         d = get_index_distance(cell, the_cell)
-        if i == 0:
+        if not i:
             result = d
         if result > d: result = d
     return result
 
 def get_closest_correct(wrong, correct_list):
-    '''
+    """
     returns cell closest to wrong from correct_list
-    '''
+    """
 
     for i, the_cell in enumerate(correct_list):
         d = get_index_distance(wrong, the_cell)
-        if i == 0:
+        if not i:
             result = d
             correct_cell = the_cell
         if result > d:
@@ -1042,7 +1029,7 @@ def get_closest_correct(wrong, correct_list):
 def is_infinite_loop(cell):
     current = cell
     path = []
-    while current.next != None:
+    while current.next is not None:
         if current not in path:
             path.append(current)
         else:
@@ -1068,13 +1055,14 @@ def correct_cell(cell):
      cell.set_next(neighbors[0])
 
 def correct_loops_only():
-    
+
+    wrong = []
     for basin in basins:
         wrong = []
         for the_cell in basin.cells:
             path = []
             current = the_cell
-            while current != None:
+            while current is not None:
                 if current in path:
                     wrong.append(current)
                     break
@@ -1090,9 +1078,9 @@ def correct_loops_only():
 
 
 def correct_directions():
-    '''
+    """
         corrects the directions of the cells of the basin to point to the correct outlet
-    '''
+    """
     for basin in basins:
         correct = []
         wrong = []
@@ -1137,7 +1125,7 @@ def correct_directions():
             c = get_closest_correct(w, correct)
             neighbors = get_neighbors_of(w)
             if c in neighbors:
-                if w.next != None:
+                if w.next is not None:
                     print 'next cell was (%d, %d) before correcting' % w.next.coords()
                 w.set_next(c)
 
@@ -1316,7 +1304,7 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc', b
 #                plt.annotate(str((i,j)), xy = (lons[i,j], lats[i,j]))
 
     print np.ma.min(u), np.ma.max(u)
-    basemap.quiver(lons, lats, u, v, width = 0.06 , units='xy', pivot = 'tail')
+    basemap.quiver(lons, lats, u, v, width = 0.03 , units='xy', pivot = 'tail')
    
 
 
@@ -1329,6 +1317,37 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc', b
     ncFile.close()
     pass
 
+from matplotlib.patches import FancyArrowPatch
+def plot_north_arrow(domain_mask = None):
+    the_lon = -60
+    the_lat = 49
+    delta = 1
+
+    basemap = polar_stereographic.basemap
+    x1, y1 = basemap(the_lon, the_lat)
+    lon_left = the_lon - delta
+    lon_right = the_lon + delta
+    lat_down = the_lat - delta
+    lat_up = the_lat + delta
+
+    north_point = basemap( the_lon, lat_up )
+    west_point = basemap( lon_left, the_lat )
+    south_point = basemap( the_lon, lat_down )
+    east_point = basemap( lon_right, the_lat )
+
+
+    plt.annotate("N", north_point, weight = "bold", font_properties = FontProperties(size = font_size))
+#    plt.annotate("S", south_point, weight = "bold")
+#    plt.annotate("E", east_point, weight = "bold")
+#    plt.annotate("W", west_point, weight = "bold", ha = "right", va = "bottom")
+
+
+    ax = plt.gca()
+    ax.add_patch(FancyArrowPatch(south_point, north_point, arrowstyle="->", mutation_scale=30, linewidth = 4))
+    ax.add_patch(FancyArrowPatch(west_point, east_point, arrowstyle="-", mutation_scale=30, linewidth = 4))
+
+    #plt.arrow(xs, ys, xn-xs, yn-ys)
+    #plt.arrow(xw, yw, xe - xw, ye - yw)
 
 
 def read_derived_from_hydrosheds():
@@ -1382,6 +1401,8 @@ def read_derived_from_hydrosheds():
 
     print 'plotted basins'
     plot_directions(cells)
+
+    plot_north_arrow()
     print 'plotted directions'
    # plot_utils.zoom_to_qc(plotter = plt)
 
@@ -1412,6 +1433,8 @@ def read_derived_from_hydrosheds():
 
     axins = zoomed_inset_axes(ax, 0.1, loc = 4)
     x, y = theBasemap(lons, lats)
+    theBasemap.drawstates()
+    theBasemap.drawcountries()
     x1 = np.min(x)
     x2 = np.max(x)
     y1 = np.min(y)
@@ -1430,8 +1453,8 @@ def read_derived_from_hydrosheds():
     theBasemap.pcolormesh(x, y, domain_mask , vmax = 1, vmin = 0)
     theBasemap.drawcoastlines()
 
-    axins.annotate('AMNO', (x1 + abs(x1) * 1.0e-1, y1 + abs(y1) * 1.0e-1),
-                    bbox = dict(facecolor = 'white', pad = 4))
+#    axins.annotate('AMNO', (x1 + abs(x1) * 1.0e-1, y1 + abs(y1) * 1.0e-1),
+#                    bbox = dict(facecolor = 'white', pad = 4))
 
     #plot_basins(sign_basins = False, draw_rivers = False, basemap = theBasemap)
     #center zoom on amno
@@ -1444,6 +1467,7 @@ def read_derived_from_hydrosheds():
 
 #    write_new_infocell()
     ncFile.close()
+    plt.savefig("amno_with_inset.png", bbox_inches = "tight")
 
    
   
@@ -1498,9 +1522,9 @@ def read_flowdirections_correct_and_save():
 
 
 def get_all_neighbors(cell):
-    '''
+    """
         returns the list of neighbor cells of the current one
-    '''
+    """
     i0, j0 = cell.coords()
     result = []
     for i in range(-1,2):
@@ -1584,6 +1608,7 @@ def main():
 
 import time
 if __name__ == "__main__":
+    plot_utils.apply_plot_params(width_pt=None, font_size=9)
     t0 = time.clock()
 #    test()
 #    main()
