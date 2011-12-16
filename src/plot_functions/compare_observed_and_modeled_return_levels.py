@@ -1,11 +1,13 @@
+from matplotlib import gridspec
+from matplotlib.ticker import FuncFormatter
+from gevfit import gevfit
+
 __author__="huziy"
 __date__ ="$1-May-2011 2:35:39 PM$"
 
 import matplotlib.pyplot as plt
 from datetime import timedelta
 from datetime import datetime
-
-from gevfit import gevfit
 from data import data_select
 
 import plot2D.calculate_performance_errors as pe_calc
@@ -16,12 +18,17 @@ import numpy as np
 import util.plot_utils as plot_utils
 
 #return periods to colors and markers
-colors = {2:'green', 5:'red', 10:'m', 30:'k'}
-markers = {2: '>', 5:'+', 10:'d', 30:'x' }
+colors = {2:'k', 5:'k', 10:'k', 30:'k'}
+markers = {2: 'o', 5:'o', 10:'o', 30:'o' }
+face_colors = {2: 'none', 5:'k', 10:'none', 30:'k' }
 
 
 import application_properties
 
+
+selected_station_ids = [
+    "104001", "103715", "093806", "093801", "092715", "081006", "061502", "080718", "040830"
+]
 
 
 #delete non-continuous parts of series
@@ -93,10 +100,10 @@ def delete_not_continuous(data):
                 station.delete_data_for_year(year)
                 data_point.delete_data_for_year(year)
 
-        if data_point.get_timeseries_length() == 0:
+        if not data_point.get_timeseries_length():
             continue
 
-        if station.get_timeseries_length() == 0:
+        if not station.get_timeseries_length():
             continue
         print station.dates[0], data_point.get_sorted_dates()[0]
         print station.dates[-1], data_point.get_sorted_dates()[-1]
@@ -117,10 +124,22 @@ def get_minmax_for_plot(x_dict, y_dict):
         vals.extend(y_dict.values())
     return np.min(vals), np.max(vals)
 
+def hide_even_pos_ax_labels(x, pos):
+    if not pos % 2:
+        return x
+    return ""
+
+    pass
 
 def plot_scatter(x_dict, y_dict, xlabel = 'x', ylabel = 'y', title = '',
-                 different_shapes_and_colors = True):
-    plt.figure()
+                 different_shapes_and_colors = True, new_figure = True
+                 ):
+
+    """
+    ticklabel_modifier - takes ticklabel string and its pos as inut
+    """
+    if new_figure:
+        plt.figure()
 
     x = []
     y = []
@@ -138,14 +157,19 @@ def plot_scatter(x_dict, y_dict, xlabel = 'x', ylabel = 'y', title = '',
             y = y_dict[key]
 
             if different_shapes_and_colors: #return levels {period => level}
-                h = plt.scatter(x, y, color = colors[key], marker = markers[key], s = 300)
+                h = plt.scatter(x, y, color = colors[key],
+                    marker = markers[key], s = 50, linewidths=1, facecolors = face_colors[key],
+                    edgecolors = "k")
                 handles.append(h)
-                labels.append('{0}'.format(key))
+                labels.append('{0}-year'.format(key))
             else: #extreme events
-                plt.scatter(x, y, color = 'k')
+                plt.scatter(x, y, color = 'k', linewidths = 1)
 
     if different_shapes_and_colors:
-        plt.legend(handles, labels, 'upper center')
+        leg = plt.legend(handles, labels, 'upper left', scatterpoints = 1,
+                                handletextpad = 0, borderpad = 0)
+        leg.draw_frame(False)
+        print leg.get_patches()
 
 
     z = get_minmax_for_plot(x_dict, y_dict)
@@ -155,7 +179,8 @@ def plot_scatter(x_dict, y_dict, xlabel = 'x', ylabel = 'y', title = '',
     plt.ylabel(ylabel)
     plt.title(title)
 
-    plt.plot(z, z, color = 'k')
+
+#    plt.plot(z, z, color = 'k')
     plt.xlim(z)
     plt.ylim(z)
 
@@ -185,17 +210,55 @@ def plot_dates_scatter(model_high_dates, station_high_dates, model_low_dates, st
     pass
 
 
+def plot_boxplot(data, title = "", file_name = "", labels = None, point_ids = None):
+    point_ids = [] if point_ids is None else point_ids
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    #plt.title(title)
+    bp = plt.boxplot(data, bootstrap=5000)
+    ax.xaxis.set_ticklabels([])
+    ax.set_ylabel("Flow ${\\rm m^3/s}$")
+
+
+
+    [y_bottom, y_top] = ax.get_ylim()
+    if y_top == 600:
+        y_top = 400
+        ax.set_ylim(y_bottom, y_top)
+
+    if len(point_ids) > 0:
+        tick_locs = ax.xaxis.get_majorticklocs()
+
+        assert len(point_ids) == len(tick_locs), "n_points = %d, nticks = %d" % (len(point_ids), len(tick_locs))
+
+        for i, loc in enumerate(tick_locs):
+            if i == tick_locs.shape[0] - 1:
+                continue
+
+            if not i % 2:
+                xlabel = (tick_locs[i] + tick_locs[i + 1]) * 0.5
+                plt.annotate(point_ids[i], xy = (xlabel, y_top - 0.02 * (y_top - y_bottom)),
+                                            rotation = "vertical", va = "top")
+            else:
+                xline = (tick_locs[i] + tick_locs[i + 1]) * 0.5
+                plt.plot([xline, xline], [y_bottom, y_top], color = "k", lw = 0.5)
+
+    plt.setp(plt.xticks()[1], rotation=30)
+    plt.tight_layout()
+    plt.savefig(file_name)
+
+
+
 
 def main():
     path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na.nc'
     data = pe_calc.get_station_and_corresponding_model_data(path = path)
-    print len(data)
     delete_not_continuous(data)
 
 
 
-    plot_utils.apply_plot_params(width_pt = 500, font_size = 18)
+    plot_utils.apply_plot_params(width_pt = None, height_cm=6, font_size = 9)
 
     high_return_periods = [10, 30]
     high_start_month = 3
@@ -205,13 +268,13 @@ def main():
 
     low_return_periods = [2, 5]
     low_start_month = 1
-    low_end_month = 3
+    low_end_month = 5
     low_event_duration = timedelta(days = 15)
 
 
     #---------------------------high
-    station_return_levels = {}
-    model_return_levels = {}
+    high_station_return_levels = {}
+    high_model_return_levels = {}
 
     station_high_dates = []
     model_high_dates = []
@@ -223,14 +286,22 @@ def main():
     model_minima = []
     model_maxima = []
 
+    high_data = []
+    labels = []
+
+    point_ids = []
 
     for station, model_point in data.iteritems():
+        if station.id not in selected_station_ids:
+            continue
+
+
         # @type model_point ModelPoint
-        if model_point.get_timeseries_length() == 0:
+        if not model_point.get_timeseries_length():
             continue
 
         # @type station Station
-        if station.get_timeseries_length() == 0:
+        if not station.get_timeseries_length():
             continue
         
         high_values_station = data_select.get_period_maxima(station.values, station.dates,
@@ -239,6 +310,9 @@ def main():
                                       end_month = high_end_month,
                                       event_duration = high_event_duration)
         vals = np.array(high_values_station.values())
+        high_data.append(high_values_station.values())
+        labels.append("Observed")
+
 
         pars_station = gevfit.optimize_stationary_for_period(vals, high_flow = True)
 
@@ -250,15 +324,22 @@ def main():
                                       start_month = high_start_month,
                                       end_month = high_end_month,
                                       event_duration = high_event_duration)
+
+        high_data.append(high_values_model.values())
+        labels.append("Modelled")
         vals = np.array(high_values_model.values())
+
+        point_ids.append(station.id)
+        point_ids.append(station.id)
+
         pars_model = gevfit.optimize_stationary_for_period(vals, high_flow = True)
 
         for ret_period in high_return_periods:
-            if not station_return_levels.has_key(ret_period):
-                station_return_levels[ret_period] = []
-                model_return_levels[ret_period] = []
-            station_return_levels[ret_period].append(gevfit.get_high_ret_level_stationary(pars_station, ret_period))
-            model_return_levels[ret_period].append(gevfit.get_high_ret_level_stationary(pars_model, ret_period))
+            if not high_station_return_levels.has_key(ret_period):
+                high_station_return_levels[ret_period] = []
+                high_model_return_levels[ret_period] = []
+            high_station_return_levels[ret_period].append(gevfit.get_high_ret_level_stationary(pars_station, ret_period))
+            high_model_return_levels[ret_period].append(gevfit.get_high_ret_level_stationary(pars_model, ret_period))
             
 
         #gather dates of the high flow events
@@ -283,56 +364,68 @@ def main():
 
 
         ##save corresponding maximums for the station and model
+        current_station_maxima = []
+        current_model_maxima = []
         for year, value in high_values_station.iteritems():
             if high_values_model.has_key(year):
                 station_maxima.append(value)
                 model_maxima.append(high_values_model[year])
 
+                current_station_maxima.append(value)
+                current_model_maxima.append(high_values_model[year])
 
 
+        #plot scatter for low flow for each station separately
+        plot_scatter( current_station_maxima, current_model_maxima, "observed (${\\rm m^3/s}$)",
+                    "modelled (${\\rm m^3/s}$)",
+                  "high flow values ({0})".format(station.id), different_shapes_and_colors = False)
+        plt.savefig('high_values_scatter_{0}.png'.format( station.id ), bbox_inches = 'tight')
 
-    #plot scatter plot (model vs station (high))
-    #return levels
-
-    print len(station_return_levels), len(model_return_levels)
-    plot_scatter(station_return_levels, model_return_levels,
-                'Observed return level (${\\rm m^3/s}$)',
-                'Modelled return level (${\\rm m^3/s}$)'
-                )
-    plt.savefig('high_return_levels_scatter.pdf', bbox_inches = 'tight')
+        print "%s: n(high_values) = %d;" % (station.id, len( current_station_maxima ))
 
     ##high flow values
     plot_scatter( station_maxima, model_maxima, "observed (${\\rm m^3/s}$)",
                     "modelled (${\\rm m^3/s}$)",
                     "high flow values", different_shapes_and_colors = False)
-    plt.savefig('high_values_scatter.pdf', bbox_inches = 'tight')
+
+    plt.savefig('high_values_scatter.png', bbox_inches = 'tight')
+
+    plot_boxplot([station_maxima, model_maxima],
+            title="High flow amplitude",
+            labels = ["Observed", "Modelled"], file_name="box_high.png")
+
+    plot_boxplot(high_data, labels=labels, file_name="box_high_all_sep.png", point_ids=point_ids)
+
+
 
     #---------------------------low
-    station_return_levels = {}
-    model_return_levels = {}
+    low_station_return_levels = {}
+    low_model_return_levels = {}
 
     station_low_dates = []
     model_low_dates = []
 
-
+    low_data = []
     for station, model_point in data.iteritems():
+        if station.id not in selected_station_ids:
+            continue
 
-        print "retained timeseries lenght of the station %s is %d " % (station.id, station.get_timeseries_length())
+        #print "retained timeseries lenght of the station %s is %d " % (station.id, station.get_timeseries_length())
 
         # @type model_point ModelPoint
-        if model_point.get_timeseries_length() == 0:
+        if not model_point.get_timeseries_length():
             continue
 
         # @type station Station
-        if station.get_timeseries_length() == 0:
+        if not station.get_timeseries_length():
             continue
 
 
-        print 'station min: %f, max: %f' % (np.min(station.values), np.max(station.values))
-        print 'model min: %f, max: %f' % (
-                                            np.min(model_point.get_values_sorted_by_date()),
-                                            np.max(model_point.get_values_sorted_by_date())
-                                           )
+#        print 'station min: %f, max: %f' % (np.min(station.values), np.max(station.values))
+#        print 'model min: %f, max: %f' % (
+#                                            np.min(model_point.get_values_sorted_by_date()),
+#                                            np.max(model_point.get_values_sorted_by_date())
+#                                           )
 
         low_values_station = data_select.get_period_minima(station.values, station.dates,
                                       start_date = None, end_date = None,
@@ -340,7 +433,7 @@ def main():
                                       end_month = low_end_month,
                                       event_duration = low_event_duration)
         
-
+        low_data.append(low_values_station.values())
         vals = np.array(low_values_station.values())
         pars_station = gevfit.optimize_stationary_for_period(vals, high_flow = False)
 
@@ -352,6 +445,7 @@ def main():
                                       end_month = low_end_month,
                                       event_duration = low_event_duration)
         vals = np.array(low_values_model.values())
+        low_data.append(low_values_model.values())
         pars_model = gevfit.optimize_stationary_for_period(vals, high_flow = False)
 
         #gather dates of the low flow events
@@ -375,11 +469,11 @@ def main():
 
 
         for ret_period in low_return_periods:
-            if not station_return_levels.has_key(ret_period):
-                station_return_levels[ret_period] = []
-                model_return_levels[ret_period] = []
-            station_return_levels[ret_period].append(gevfit.get_low_ret_level_stationary(pars_station, ret_period))
-            model_return_levels[ret_period].append(gevfit.get_low_ret_level_stationary(pars_model, ret_period))
+            if not low_station_return_levels.has_key(ret_period):
+                low_station_return_levels[ret_period] = []
+                low_model_return_levels[ret_period] = []
+            low_station_return_levels[ret_period].append(gevfit.get_low_ret_level_stationary(pars_station, ret_period))
+            low_model_return_levels[ret_period].append(gevfit.get_low_ret_level_stationary(pars_model, ret_period))
 
 
 
@@ -412,27 +506,46 @@ def main():
         plot_scatter( current_station_minima, current_model_minima, "observed (${\\rm m^3/s}$)",
                     "modelled (${\\rm m^3/s}$)",
                   "low flow values ({0})".format(station.id), different_shapes_and_colors = False)
-        plt.savefig('low_values_scatter_{0}.pdf'.format( station.id ), bbox_inches = 'tight')
+        plt.savefig('low_values_scatter_{0}.png'.format( station.id ), bbox_inches = 'tight')
+
+        print "%s: n(low_values) = %d;" % (station.id, len( current_station_minima ))
 
 
 
-    #plot scatter plot (model vs station (low))
-    plot_scatter(station_return_levels, model_return_levels,
-                'Observed return level (${\\rm m^3/s}$)',
-                'Modelled return level (${\\rm m^3/s}$)' 
-                )
-    plt.savefig('low_return_levels_scatter.pdf', bbox_inches = 'tight')
+    #draw return levels
+    fig = plt.figure()
+    gs = gridspec.GridSpec(1,2)
+    ax = fig.add_subplot(gs[0,0])
+    plot_scatter(high_station_return_levels,
+                 high_model_return_levels,
+                 xlabel="Observed return levels",
+                 ylabel="Modelled return levels", new_figure=False,
+                 title="(a) High flow"
+
+    )
+    ax.xaxis.set_major_formatter(FuncFormatter(hide_even_pos_ax_labels))
+
+    fig.add_subplot(gs[0,1])
+    plot_scatter(low_station_return_levels,
+                 low_model_return_levels,
+                 xlabel="Observed return levels",
+                 ylabel="Modelled  return levels",
+        title="(b) Low flow",
+        new_figure=False)
 
 
+    plt.tight_layout()
+    plt.savefig("rl_scatter.png")
 
-    for sV, mV in zip(station_minima, model_minima):
-        print sV, mV
     plot_scatter( station_minima, model_minima, "observed", "modelled",
                   "low flow values", different_shapes_and_colors = False)
-    plt.savefig('low_values_scatter.pdf', bbox_inches = 'tight')
+    plt.savefig('low_values_scatter.png', bbox_inches = 'tight')
 
+    plot_boxplot([station_minima, model_minima],
+            title="Low flow amplitude",
+            labels = ["Observed", "Modelled"], file_name="box_low.png")
 
-
+    plot_boxplot(low_data, labels=labels, file_name="box_low_all_sep.png", point_ids= point_ids)
 
     #plot dates of the high and low flow occurences
     #before uncommenting figure out why the x and y arrays are of different sizes

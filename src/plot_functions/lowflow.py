@@ -1,3 +1,5 @@
+from matplotlib.font_manager import FontProperties
+from matplotlib.transforms import Affine2D, Bbox
 from mpl_toolkits.basemap import NetCDFFile
 import os.path
 import sys
@@ -13,47 +15,25 @@ from netCDF4 import Dataset
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from math import sqrt
-import pylab
 
 import matplotlib.dates as mdates
 import data.members as members
 import os
 
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, FormatStrFormatter, NullFormatter
+from util import plot_utils
 
 import calendar
 
 import pickle
 import readers.read_infocell as infocell
+from matplotlib import gridspec
 
 #Plot number of occurences of high flow or low flow
 
 TIME_FORMAT = '%Y_%m_%d_%H_%M'
 
-inches_per_pt = 1.0 / 72.27               # Convert pt to inch
-golden_mean = (sqrt(5) - 1.0) / 2.0       # Aesthetic ratio
-fig_width = 1000 * inches_per_pt          # width in inches
-fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, 2*fig_height]
 
-
-font_size = 16
-params = {
-        'axes.labelsize': font_size,
-        'font.size': font_size,
-        'text.fontsize': font_size,
-        'legend.fontsize': font_size,
-        'xtick.labelsize': font_size,
-        'ytick.labelsize': font_size,
-        'figure.figsize': fig_size
-}
-
-
-title_font_size = font_size
-
-        
-pylab.rcParams.update(params)
 
 
 class BasinIndices():
@@ -185,7 +165,7 @@ def get_low_flow(discharge_data, times, duration_days = timedelta(days = 7),
             dates_to_occurrences[day] = 0
     
 
-    assert len(dates_to_occurrences) <= 366 and len(dates_to_occurrences) >= 365, 'len = {0}'.format(len(dates_to_occurrences))
+    assert 366 >= len(dates_to_occurrences) >= 365, 'len = {0}'.format(len(dates_to_occurrences))
     return dates_to_occurrences
 
 
@@ -248,7 +228,7 @@ def get_high_flow(discharge_data, times, duration_days = timedelta(days = 7),
         if not dates_to_occurrences.has_key(day):
             dates_to_occurrences[day] = 0
 
-    assert len(dates_to_occurrences) <= 366 and len(dates_to_occurrences) >= 365
+    assert 366 >= len(dates_to_occurrences) >= 365
     return dates_to_occurrences
 
 
@@ -260,17 +240,17 @@ def get_days_of_stamp_year(year = 2000, start_month_of_stamp_year = 1):
 
 
 
-def calculate_occurences_for_member(nc = None, bin_dates = [], high_flow = True,
-                                    basin_indices = None,
-                                    start_date = datetime(1970,1,1,0,0),
-                                    end_date = datetime(1999,12,31,0,0),
-                                    dates_of_stamp_year = [],
-                                    i_indices = [], j_indices = [],
-                                    event_duration = timedelta(days = 7),
-                                    bin_interval_dt = timedelta(days = 10), times = [],
-                                    stamp_year = 2000, start_month_of_stamp_year = 1
-                                    ):
+def calculate_occurences_for_member(nc=None, bin_dates=None, high_flow=True, basin_indices=None,
+                                    start_date=datetime(1970, 1, 1, 0, 0), end_date=datetime(1999, 12, 31, 0, 0),
+                                    dates_of_stamp_year=None, i_indices=None, j_indices=None,
+                                    event_duration=timedelta(days=7), bin_interval_dt=timedelta(days=10), times=None,
+                                    stamp_year=2000, start_month_of_stamp_year=1):
 
+    if not times: times = []
+    if not j_indices: j_indices = []
+    if not i_indices: i_indices = []
+    if not dates_of_stamp_year: dates_of_stamp_year = []
+    if not bin_dates: bin_dates = []
     discharge_data = nc.variables['water_discharge'].data[:,:]
 
 #    discharge_data = np.zeros(discharge_data.shape) + 1000
@@ -362,7 +342,7 @@ def calculate_occurences_for_member(nc = None, bin_dates = [], high_flow = True,
     return basin_to_occurences
 
 
-def calculate_mean_occurences_and_std(member2basin_and_occ = {}):
+def calculate_mean_occurences_and_std(member2basin_and_occ = None):
     """
         return mean occurence number and std for each day of the stamp year
     """
@@ -396,19 +376,15 @@ def get_corresponding_date_of_stamp_year(the_date, stamp_year = 2000, start_mont
 
 
 
-def calculate_basin_means_and_stds( bin_dates = [],
-                    current_start_date = datetime(1970, 1, 1, 0, 0),
-                    current_end_date = datetime(1999, 12, 31, 0, 0),
-                    future_start_date = datetime(2041, 1, 1, 0, 0),
-                    future_end_date = datetime(2070, 12, 31, 0, 0),
-                    stamp_year = 2000,
-                    start_month_of_stamp_year = 7,
-                    bin_interval_dt = timedelta(days = 10),
-                    data_folder = '', event_duration = timedelta(days = 7),
-                    high_flow = True
-                    ):
+def calculate_basin_means_and_stds(bin_dates=None, current_start_date=datetime(1970, 1, 1, 0, 0),
+                                   current_end_date=datetime(1999, 12, 31, 0, 0),
+                                   future_start_date=datetime(2041, 1, 1, 0, 0),
+                                   future_end_date=datetime(2070, 12, 31, 0, 0), stamp_year=2000,
+                                   start_month_of_stamp_year=7, bin_interval_dt=timedelta(days=10), data_folder='',
+                                   event_duration=timedelta(days=7), high_flow=True):
 
 
+    if not bin_dates: bin_dates = []
     print 'data folder: {0}'.format(data_folder)
     path = os.path.join(data_folder, '%s_discharge_1970_01_01_00_00.nc' % members.current_ids[0])
     print 'stamp_year = ', stamp_year
@@ -499,7 +475,7 @@ def calculate_basin_means_and_stds( bin_dates = [],
 
 
 def main(event_duration = timedelta(days = 7),
-         prefix = '', data_folder = 'data/streamflows/VplusF_newmask1',
+         prefix = '', data_folder = '',
          start_month_of_stamp_year = 1, stamp_year = 2000, high_flow = True ):
 
     
@@ -560,31 +536,474 @@ def main(event_duration = timedelta(days = 7),
 
 
 
-   
+#    plot_scatter(current_basin2mean = current_basin2mean, future_basin2mean = future_basin2mean,
+#        bin_dates=bin_dates, prefix=prefix, start_date=day_start, end_date=day_end)
 
+    plot_scatter_merge_for_months(current_basin2mean = current_basin2mean, future_basin2mean = future_basin2mean,
+        bin_dates=bin_dates, prefix=prefix, start_date=day_start, end_date=day_end)
+
+#    plot_changes_for_month_merged(current_basin2mean = current_basin2mean, future_basin2mean = future_basin2mean,
+#        bin_dates=bin_dates, prefix=prefix, start_date=day_start, end_date=day_end)
 
     print 'Starting to plot'
-    pylab.rcParams.update(params)
-    
+#    plot_occ_old(bin_dates = bin_dates,  bin_widths=bin_widths,
+#            current_start_date = current_start_date, current_end_date = current_end_date,
+#            start_month_of_stamp_year = start_month_of_stamp_year,
+#            current_basin2mean = current_basin2mean,
+#            future_basin2mean = future_basin2mean,
+#            current_basin2std = current_basin2std,  future_basin2std = future_basin2std,
+#            event_duration = event_duration,
+#            day_start = day_start,
+#            day_end = day_end, prefix = prefix
+#    )
+    pass
+
+
+
+
+basin_name2mark = {
+    "ARN": "1",
+    "FEU": "2",
+    "MEL": "3",
+    "CAN": "4",
+    "PYR": "5",
+    "GRB": "6",
+    "BAL": "7",
+    "GEO": "8",
+    "CHU": "9",
+    "LGR": "10",
+    "NAT": "11",
+    "ROM": "12",
+    "MOI": "13",
+    "MAN": "14",
+    "RUP": "15",
+    "BEL": "16",
+    "STM": "17",
+    "RDO": "18",
+    "SAG": "19",
+    "BOM": "20",
+    "WAS": "21"
+}
+
+southern = ["RDO", "BEL", "STM", "WAS", "SAG", "BOM", "RUP"]
+northern = ["ARN", "FEU", "MEL", "PYR", "GRB", "BAL", "GEO"]
+central =  ["CAN", "CHU", "LGR", "NAT", "MAN", "MOI", "ROM"]
+
+
+def plot_changes_for_month_merged(current_basin2mean = None,
+                  future_basin2mean = None,
+                  bin_dates = None, prefix = "",
+                  start_date = None, end_date = None):
+    n_years = 30.0
+    font_props = FontProperties(weight="bold", size = 7)
+
+    basins = current_basin2mean.keys()
+
+    basin_groups = [[], [], []]
+    #group_titles = [" Northern"]
+
+    for b in basins:
+        if b.name in northern:
+            basin_groups[0].append(b)
+        elif b.name in central:
+            basin_groups[1].append(b)
+        elif b.name in southern:
+            basin_groups[2].append(b)
+
+    plot_utils.apply_plot_params(width_pt=None, font_size=9, height_cm=60, width_cm=16)
+    fig = plt.figure()
+    gs  = gridspec.GridSpec(3,1)
+
+    for i, basin_group in enumerate( basin_groups):
+
+        host = fig.add_subplot(gs[i, 0])
+        current_color = "k"
+
+
+        for basin in basin_group:
+            n_cells_and_years = float(basin.get_number_of_cells() * n_years)
+            c_data = current_basin2mean[basin]
+            f_data = future_basin2mean[basin]
+    #        p_left = host.scatter(bin_dates, c_data / n_cells_and_years, marker="$%s$" % basin_name2mark[basin.name],
+    #            color = current_color, linewidths = 0., s = 60
+    #        )
+
+
+            monthly_vals_current = [0 for i in xrange(12)]
+            monthly_vals_future = [0 for i in xrange(12)]
+            monthly_dates = [datetime(start_date.year, month, 15) for month in xrange(1,13)]
+
+            for date, occ_cur, occ_fut in zip(bin_dates, c_data / n_cells_and_years, f_data / n_cells_and_years):
+                monthly_vals_current[date.month - 1] += occ_cur
+                monthly_vals_future[date.month - 1] += occ_fut
+
+            change = np.array(monthly_vals_future) - np.array(monthly_vals_current)
+
+            for date, occ in zip(monthly_dates, change):
+                if np.abs(occ) < 0.01: continue #do not show the values <= 0.01
+                host.annotate(basin_name2mark[basin.name], xy = (date, occ), font_properties = font_props,
+                    color = current_color, ha = "right", zorder = 2)
+            host.plot(monthly_dates, change, color = current_color,lw = 0.1)
+
+    #        p_right = guest.scatter(bin_dates, f_data / n_cells_and_years, marker= "$%s$" % basin_name2mark[basin.name],
+    #            color = future_color, linewidths = 0., s = 60)
+
+
+        #position ticklabels between the ticks
+
+        date_ticks = []
+        current_date = datetime(start_date.year, 1,15)
+        for months in xrange(1, 13):
+            date_ticks.append(datetime(current_date.year, current_date.month, 1))
+            date_ticks.append(current_date )
+
+            if current_date.month + 1 == 13:
+                month = 1
+            else:
+                month = current_date.month + 1
+            current_date = datetime( current_date.year, month, current_date.day )
+
+        host.set_ylim(-0.5, 0.5)
+        host.xaxis.set_ticks(date_ticks)
+        tls = host.xaxis.get_majorticklabels()
+        major_ticks = host.xaxis.get_major_ticks()
+
+
+        for i, mtl in enumerate(major_ticks):
+            mtl.tick1line.set_visible(i % 2 == 0)
+            mtl.tick2line.set_visible(i % 2 == 0)
+            mtl.label1On = (i % 2 != 0)
+
+        host.set_xlim(start_date, end_date)
+
+            #    host.xaxis.set_major_locator(
+            #        mpl.dates.MonthLocator(bymonth=xrange(2,13,3))
+            #    )
+        host.xaxis.set_major_formatter(
+                        mpl.dates.DateFormatter('%b')
+        )
+    #plt.tight_layout()
+    plt.savefig(prefix + "_occurrence_scatter_for_months_changes.png")
+
+
+def plot_scatter_merge_for_months(current_basin2mean = None,
+                  future_basin2mean = None,
+                  bin_dates = None, prefix = "",
+                  start_date = None, end_date = None):
+
+    n_years = 30.0
+    font_props = FontProperties(weight="normal", size = 6)
+
+    basins = current_basin2mean.keys()
+
+    basin_groups = [[], [], []]
+    #group_titles = [" Northern"]
+
+    tranformation = Affine2D()
+    tranformation.translate(0.45, 0.04)
+
+    for b in basins:
+        if b.name in northern:
+            basin_groups[0].append(b)
+        elif b.name in central:
+            basin_groups[1].append(b)
+        elif b.name in southern:
+            basin_groups[2].append(b)
+
+    plot_utils.apply_plot_params(width_pt=None, font_size=9, height_cm=20, width_cm=16)
+    fig = plt.figure()
+    gs  = gridspec.GridSpec(3,1)
+
+    main_subplots = []
+    for i in xrange(len(basin_groups)):
+        main_subplots.append(fig.add_subplot(gs[i, 0]))
+
+
+    for i, basin_group in enumerate( basin_groups):
+
+        host = main_subplots[i]
+        guest = host.twinx()
+        #invert axis
+        guest.invert_yaxis()
+
+        current_color = "b"
+        future_color = "r"
+
+        #host.yaxis.label.set_color(current_color)
+        #host.set_ylabel("Current")
+
+        #guest.yaxis.label.set_color(future_color)
+        #guest.set_ylabel("Future")
+        if i == 1:
+            host.set_ylabel("Normalized frequency ( current climate )")
+            guest.set_ylabel("Normalized frequency ( future climate )")
+
+
+        guest.set_ylim(2, 0)
+        host.set_ylim(0, 2)
+
+        #tkw = dict(size=4, width=1.5)
+        for ti in host.get_yticklabels():
+            ti.set_color(current_color)
+
+        for ti in guest.get_yticklabels():
+            ti.set_color(future_color)
+
+        #create inset axes
+        inset_box = host.get_position()
+        inset_box = inset_box.transformed(tranformation)
+        inset_box = inset_box.shrunk(0.4, 0.6)
+        axins = fig.add_axes(inset_box)
+
+
+        for basin in basin_group:
+
+            n_cells_and_years = float(basin.get_number_of_cells() * n_years)
+            c_data = current_basin2mean[basin]
+            f_data = future_basin2mean[basin]
+    #        p_left = host.scatter(bin_dates, c_data / n_cells_and_years, marker="$%s$" % basin_name2mark[basin.name],
+    #            color = current_color, linewidths = 0., s = 60
+    #        )
+
+
+            monthly_vals_current = [0 for i in xrange(12)]
+            monthly_vals_future = [0 for i in xrange(12)]
+            monthly_dates = [datetime(start_date.year, month, 15) for month in xrange(1,13)]
+
+            for date, occ_cur, occ_fut in zip(bin_dates, c_data / n_cells_and_years, f_data / n_cells_and_years):
+                monthly_vals_current[date.month - 1] += occ_cur
+                monthly_vals_future[date.month - 1] += occ_fut
+
+
+
+            for date, occ in zip(monthly_dates, monthly_vals_current):
+                if occ < 0.01: continue #do not show the values <= 0.01
+                host.annotate(basin_name2mark[basin.name], xy = (date, occ), font_properties = font_props,
+                    color = current_color, ha = "right")
+            host.plot(monthly_dates, monthly_vals_current, color = current_color,lw = 0.2)
+
+    #        p_right = guest.scatter(bin_dates, f_data / n_cells_and_years, marker= "$%s$" % basin_name2mark[basin.name],
+    #            color = future_color, linewidths = 0., s = 60)
+
+            for date, occ in zip(monthly_dates, monthly_vals_future):
+                if occ < 0.01: continue
+                guest.annotate(basin_name2mark[basin.name], xy = (date, occ), font_properties = font_props,
+                    va = "top", color = future_color, ha = "right")
+
+            guest.plot(monthly_dates, monthly_vals_future, color = future_color, lw = 0.2)
+
+            #plot changes as inset
+            changes = np.array( monthly_vals_future ) - np.array(monthly_vals_current)
+            for date, the_change in zip(monthly_dates, changes):
+                if the_change < 0.01: continue
+                axins.annotate(basin_name2mark[basin.name], xy = (date, the_change), font_properties = font_props,
+                    va = "top", color = "k", ha = "right")
+            axins.plot(monthly_dates, changes, color = "k", lw = 0.2)
+
+
+
+
+
+
+        #position ticklabels between the ticks
+
+        date_ticks = []
+        current_date = datetime(start_date.year, 1,15)
+        for months in xrange(1, 13):
+            date_ticks.append(datetime(current_date.year, current_date.month, 1))
+            date_ticks.append(current_date )
+
+            if current_date.month + 1 == 13:
+                month = 1
+            else:
+                month = current_date.month + 1
+            current_date = datetime( current_date.year, month, current_date.day )
+
+        #leave only month names and center the labels
+        host.xaxis.set_ticks(date_ticks)
+        major_ticks = host.xaxis.get_major_ticks()
+        for i, mtl in enumerate(major_ticks):
+            mtl.tick1line.set_visible(i % 2 == 0)
+            mtl.tick2line.set_visible(i % 2 == 0)
+            mtl.label1On = (i % 2 != 0)
+
+        host.set_xlim(start_date, end_date)
+        host.xaxis.set_major_formatter(
+                        mpl.dates.DateFormatter('%b')
+        )
+
+        #leave only month names and center the labels
+        axins.set_xlim(start_date, end_date)
+        axins.xaxis.set_major_formatter(
+                        mpl.dates.DateFormatter('%b')
+        )
+
+
+        axins.xaxis.set_ticks(date_ticks)
+        axins.tick_params(labelsize = 6)
+        major_ticks = axins.xaxis.get_major_ticks()
+        for i, mtl in enumerate(major_ticks):
+            mtl.tick1line.set_visible(i % 2 == 0)
+            mtl.tick2line.set_visible(i % 2 == 0)
+            mtl.label1On = (i % 4 == 1)
+
+
+    #plt.tight_layout()
+    plt.savefig(prefix + "_occurrence_scatter_for_months.png")
+
+    pass
+
+
+def plot_scatter( current_basin2mean = None,
+                  future_basin2mean = None,
+                  bin_dates = None, prefix = "",
+                  start_date = None, end_date = None
+                  ):
+
+
+    n_years = 30.0
+    font_props = FontProperties(weight="bold", size = 6)
+
+    basins = current_basin2mean.keys()
+
+    basin_groups = [[], [], []]
+    #group_titles = [" Northern"]
+
+    for b in basins:
+        if b.name in northern:
+            basin_groups[0].append(b)
+        elif b.name in central:
+            basin_groups[1].append(b)
+        elif b.name in southern:
+            basin_groups[2].append(b)
+
+    plot_utils.apply_plot_params(width_pt=None, font_size=9, height_cm=20, width_cm=16)
+    fig = plt.figure()
+    gs  = gridspec.GridSpec(3,1)
+
+    for i, basin_group in enumerate( basin_groups):
+
+        host = fig.add_subplot(gs[i, 0])
+        guest = host.twinx()
+        #invert axis
+        guest.invert_yaxis()
+
+        current_color = "b"
+        future_color = "r"
+
+        host.yaxis.label.set_color(current_color)
+        host.set_ylabel("Current")
+
+        guest.yaxis.label.set_color(future_color)
+        guest.set_ylabel("Future")
+
+        guest.set_ylim(1, 0)
+        host.set_ylim(0, 1)
+
+        #tkw = dict(size=4, width=1.5)
+        for ti in host.get_yticklabels():
+            ti.set_color(current_color)
+
+        for ti in guest.get_yticklabels():
+            ti.set_color(future_color)
+
+
+
+
+        for basin in basin_group:
+            n_cells_and_years = float(basin.get_number_of_cells() * n_years)
+            c_data = current_basin2mean[basin]
+            f_data = future_basin2mean[basin]
+    #        p_left = host.scatter(bin_dates, c_data / n_cells_and_years, marker="$%s$" % basin_name2mark[basin.name],
+    #            color = current_color, linewidths = 0., s = 60
+    #        )
+
+
+
+            for date, occ in zip(bin_dates, c_data / n_cells_and_years):
+                if occ < 0.01: continue
+                host.annotate(basin_name2mark[basin.name], xy = (date, occ), font_properties = font_props,
+                    color = current_color, ha = "right")
+            host.plot(bin_dates, c_data / n_cells_and_years, color = current_color,lw = 0.2)
+
+    #        p_right = guest.scatter(bin_dates, f_data / n_cells_and_years, marker= "$%s$" % basin_name2mark[basin.name],
+    #            color = future_color, linewidths = 0., s = 60)
+
+            for date, occ in zip(bin_dates, f_data / n_cells_and_years):
+                if occ < 0.01: continue
+                guest.annotate(basin_name2mark[basin.name], xy = (date, occ), font_properties = font_props,
+                    va = "top", color = future_color, ha = "right")
+
+            guest.plot(bin_dates, f_data / n_cells_and_years, color = future_color, lw = 0.2)
+
+        #position ticklabels between the ticks
+
+        date_ticks = []
+        current_date = datetime(start_date.year, 1,15)
+        for months in xrange(1, 13):
+            date_ticks.append(datetime(current_date.year, current_date.month, 1))
+            date_ticks.append(current_date )
+
+            if current_date.month + 1 == 13:
+                month = 1
+            else:
+                month = current_date.month + 1
+            current_date = datetime( current_date.year, month, current_date.day )
+
+
+        host.xaxis.set_ticks(date_ticks)
+        tls = host.xaxis.get_majorticklabels()
+        major_ticks = host.xaxis.get_major_ticks()
+
+        for i, tl in enumerate(tls):
+            tl.set_visible(i % 2 != 0 )
+
+        for i, mtl in enumerate(major_ticks):
+            mtl.tick1line.set_visible(i % 2 == 0)
+            mtl.tick2line.set_visible(i % 2 == 0)
+
+        host.set_xlim(start_date, end_date)
+
+            #    host.xaxis.set_major_locator(
+            #        mpl.dates.MonthLocator(bymonth=xrange(2,13,3))
+            #    )
+        host.xaxis.set_major_formatter(
+                        mpl.dates.DateFormatter('%b')
+        )
+    #plt.tight_layout()
+    plt.savefig(prefix + "_occurrence_scatter.png")
+
+
+
+    pass
+
+
+def plot_occ_old(bin_dates = None, bin_widths = None, current_start_date = None, current_end_date = None,
+                 start_month_of_stamp_year = 1, current_basin2mean = None,
+                 future_basin2mean = None,
+                 current_basin2std = None,  future_basin2std = None,
+                 event_duration = None,
+                 day_start = None, day_end = None, prefix = ""
+                 ):
     plt.figure()
     i = 1
 
-    plt.subplots_adjust(hspace = 0.4, wspace = 0.0)
+    #plt.subplots_adjust(hspace = 0.4, wspace = 0.0)
 
     start_date = datetime(current_start_date.year, start_month_of_stamp_year, 1, 0,0,0)
-    end_date = datetime(current_end_date.year, start_month_of_stamp_year,1,0,0,0)
+    end_date = datetime(current_end_date.year, start_month_of_stamp_year,1,0,0,0) # not including
     n_years = (end_date - start_date).days / 365
 
 
     print len(bin_dates)
     basins_sorted = current_basin2mean.keys()
     basins_sorted.sort(key = (lambda basin : basin.name)) # sort by name
-    
+
     ax_prev = None
     for basin in basins_sorted:
         print basin.name, basin.get_number_of_cells()
         ax = plt.subplot(6,4,i,sharey = ax_prev)
-        
+
         if ax_prev is None:
             ax_prev = ax
 
@@ -602,7 +1021,7 @@ def main(event_duration = timedelta(days = 7),
 
  #       plt.hist(occs, bins, rwidth = 0.8, histtype='bar')
 
-        
+
         b_current = plt.bar(bin_dates, -mean_current , width = bin_widths, linewidth = 0.5,
                                          label = 'current climate', yerr = std_current, color = 'y')
         b_future = plt.bar(bin_dates, mean_future , width = bin_widths, linewidth = 0.5,
@@ -611,7 +1030,7 @@ def main(event_duration = timedelta(days = 7),
         #plt.yticks([0, 185, 370])
 
         ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda x, pos: abs(x))
+            FuncFormatter(lambda x, pos: "%.2f" % abs(x))
         )
 
 
@@ -631,6 +1050,7 @@ def main(event_duration = timedelta(days = 7),
             for label in ax.get_yticklabels():
                 label.set_visible(False)
 
+
         #ax = plt.gca()
         ax.xaxis.set_major_locator(
             mpl.dates.MonthLocator(bymonth=xrange(2,13,3))
@@ -643,9 +1063,11 @@ def main(event_duration = timedelta(days = 7),
         i += 1
 
     plt.figlegend([b_current[0],b_future[0]],['Current climate', 'Future climate'], loc = (0.5, 0.1))
-    plt.figtext(0.05, 0.6, "NORMALIZED FREQUENCY", rotation = 90)
-    plt.savefig('%s_%d_panel.pdf' % (prefix, event_duration.days))
-    pass
+    plt.figtext(0.05, 0.6, "Normalized frequency", rotation = 90)
+    plt.savefig('%s_%d_panel.png' % (prefix, event_duration.days))
+
+
+
 
 def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
          low_event_duration = timedelta(days = 15),
@@ -732,8 +1154,7 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
 
 
     print 'Starting to plot'
-    pylab.rcParams.update(params)
-    
+
     plt.figure()
     i = 1
     plt.subplots_adjust(hspace = 0.5, wspace = 0)
@@ -811,7 +1232,7 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
         i += 1
 
     plt.figlegend([high_b[0],low_b[0]],['Maximum flow', 'Minimum flow'], 'upper center')
-    plt.savefig('current_occurences_panel.pdf')
+    plt.savefig('current_occurences_panel.png')
     pass
 
 
@@ -822,9 +1243,9 @@ if __name__ == "__main__":
     main(data_folder = data_folder, event_duration = timedelta(days = 1), prefix = 'high')
 
 #compare high and low occurences
-    plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
-                               low_event_duration = timedelta(days = 15),
-                               data_folder = data_folder,
-                               start_month_of_stamp_year = 1, stamp_year = 2000)
+#    plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
+#                               low_event_duration = timedelta(days = 15),
+#                               data_folder = data_folder,
+#                               start_month_of_stamp_year = 1, stamp_year = 2000)
 
     print "Hello World"
