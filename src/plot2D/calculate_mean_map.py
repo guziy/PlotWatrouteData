@@ -21,22 +21,6 @@ import gevfit.matplotlib_helpers.my_colormaps as my_cm
 
 
 
-inches_per_pt = 1.0 / 72.27               # Convert pt to inch
-golden_mean = (sqrt(5) - 1.0) / 2.0       # Aesthetic ratio
-fig_width = 1000 * inches_per_pt          # width in inches
-fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, fig_height]
-
-font_size = 35
-params = {
-        'axes.labelsize': font_size,
-        'font.size':font_size,
-        'text.fontsize': font_size,
-        'legend.fontsize': font_size,
-        'xtick.labelsize': font_size,
-        'ytick.labelsize': font_size,
-        'figure.figsize': fig_size
-        }
 
 
 
@@ -95,7 +79,7 @@ def plot_data(data, i_array, j_array, name='AEX', title = None, digits = 1,
  #   m.readshapefile('data/shape/contour_bv_MRCC/Bassins_MRCC_utm18', 'basins')
  #   m.scatter(xs, ys, c=to_plot)
     plot_basin_boundaries_from_shape(m, axes=axes, linewidth = 2.1)
-    the_basemap.drawrivers(linewidth = 0.5, ax = axes)
+    #the_basemap.drawrivers(linewidth = 0.5, ax = axes)
     the_basemap.drawcoastlines(linewidth = 0.5, ax = axes)
     plot_utils.draw_meridians_and_parallels(the_basemap, step_degrees = 30)
 
@@ -205,8 +189,8 @@ def get_meanof_means_and_stds_from_files(files):
         stdevs += np.std(data, axis = 0)
 
 
-    mean = mean / float(len(files))
-    stdevs = stdevs / float(len(files))
+    mean /= float(len(files))
+    stdevs /= float(len(files))
 
     print 'max deviation: ', np.max(stdevs)
     assert mean.shape[0] == data.shape[1]

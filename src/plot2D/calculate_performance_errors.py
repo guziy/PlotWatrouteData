@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import pylab
 import matplotlib as mpl
+from matplotlib import gridspec
 
 import data.data_select as data_select
 import util.plot_utils as plot_utils
@@ -45,21 +46,7 @@ xs = polar_stereographic.xs
 ys = polar_stereographic.ys
 
 
-inches_per_pt = 1.0 / 72.27               # Convert pt to inch
-golden_mean = (sqrt(5.0) - 1.0) / 2.0       # Aesthetic ratio
-fig_width = 800 * inches_per_pt          # width in inches
-fig_height = fig_width * golden_mean      # height in inches
-fig_size = [fig_width, 2 * fig_height]
 
-params = {
-        'axes.labelsize': 25,
-        'font.size': 25,
-        'text.fontsize': 25,
-        'legend.fontsize': 25,
-        'xtick.labelsize': 25,
-        'ytick.labelsize': 25,
-        'figure.figsize': fig_size
-        }
 
 
 
@@ -181,11 +168,17 @@ def average_for_each_day_of_year(times, data, start_date = None, end_date = None
     return result_dates, result_values
         
  
-def calculate_skills(selected_stations=None, dates=[], selected_station_values=[], selected_model_values=[],
-                     grid_drainages=[], grid_lons=[], grid_lats=[]):
+def calculate_skills(selected_stations=None, dates=None, selected_station_values=None, selected_model_values=None,
+                     grid_drainages=None, grid_lons=None, grid_lats=None):
 
 
 
+    if not grid_drainages: grid_drainages = []
+    if not selected_model_values: selected_model_values = []
+    if not selected_station_values: selected_station_values = []
+    if not grid_lats: grid_lats = []
+    if not grid_lons: grid_lons = []
+    if not dates: dates = []
     if not selected_stations: selected_stations = []
     for i in range(len(selected_stations)):
          model_values = selected_model_values[i]
@@ -248,7 +241,7 @@ def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds
         print 'getting data from file ', path
 
 
-        data, times, i_list, j_list = data_select.get_data_from_file(path)
+        [data, times, i_list, j_list] = data_select.get_data_from_file(path)
         drainage_area = data_select.get_field_from_file(path, field_name = 'accumulation_area')
 
         if drainage_area is not None:
@@ -359,7 +352,7 @@ def get_mask_for_station(directions_file = 'data/hydrosheds/directions_for_strea
 
     domain_mask = compare_swe.get_domain_mask()
 
-    the_mask = the_mask * domain_mask
+    the_mask *= domain_mask
     return the_mask
 
 
@@ -425,7 +418,7 @@ def main():
     members.current_ids = []
 
 
-    pylab.rcParams.update(params)
+    #pylab.rcParams.update(params)
     path_format = 'data/streamflows/hydrosheds_euler9/%s_discharge_1970_01_01_00_00.nc'
 
     path_to_analysis_driven = path_format % members.control_id
@@ -480,10 +473,11 @@ def main():
     grid_lons = []
     grid_lats = []
 
-    plot_utils.apply_plot_params(font_size=25, width_pt=1200, aspect_ratio=2)
+    plot_utils.apply_plot_params(font_size=9, width_pt=None, aspect_ratio=2)
+    gs = gridspec.GridSpec(5, 2)
     fig = plt.figure()
 
-    current_subplot = 1
+    current_subplot = 0
 
     label1 = "modelled"
     label2 = "observed"
@@ -491,8 +485,7 @@ def main():
     line2 = None
     lines_for_mems = None
     labels_for_mems = None
-    override = {'fontsize': 24}
-    fig.subplots_adjust(hspace = 0.9, wspace = 0.4, top = 0.9)
+    #fig.subplots_adjust(hspace = 0.9, wspace = 0.4, top = 0.9)
 
 
 
@@ -649,16 +642,22 @@ def main():
 
 
 
-
-        ax = fig.add_subplot(5, 2, current_subplot)
+        row = current_subplot// 2
+        col = current_subplot % 2
+        ax = fig.add_subplot(gs[row, col])
         current_subplot += 1
 
+        #put "Streamflow label on the y-axis"
+        if row == 2 and col == 0:
+            ax.set_ylabel("Streamflow (${\\rm m^3/s}$)")
 
         line1, = ax.plot(stamp_dates, mean_data_model, linewidth = 3, color = "b")
 
         upper_model = np.max(mean_data_model)
 
         line2, = ax.plot(stamp_dates, mean_data_station, linewidth = 3, color = "r")
+
+
 
 
         #plot member simulation data
@@ -713,11 +712,32 @@ def main():
         north_south = 'N' if station.latitude > 0 else 'S'
         title_data = (station.id, np.abs(station.longitude), west_east,
                                   np.abs(station.latitude), north_south)
-        ax.set_title('%s: (%3.1f%s, %3.1f%s)' % title_data, override)
+        ax.set_title('%s: (%3.1f%s, %3.1f%s)' % title_data)
 
-        ax.xaxis.set_major_locator(
-            mpl.dates.MonthLocator(bymonth = range(2,13,2))
-        )
+
+        date_ticks = []
+
+        for month in xrange(1,13):
+            the_date = datetime(stamp_dates[0].year,month, 1)
+            date_ticks.append(the_date)
+            date_ticks.append(the_date + timedelta(days = 15))
+
+
+        ax.xaxis.set_ticks(date_ticks)
+        tls = ax.xaxis.get_majorticklabels()
+        major_ticks = ax.xaxis.get_major_ticks()
+
+#        for itl, tl in enumerate(tls):
+#            tl.set_visible(itl % 4 != 1 )
+
+        for imtl, mtl in enumerate(major_ticks):
+            mtl.tick1line.set_visible(imtl % 2 == 0)
+            mtl.tick2line.set_visible(imtl % 2 == 0)
+            mtl.label1On = (imtl % 4 == 1)
+
+#        ax.xaxis.set_major_locator(
+#            mpl.dates.MonthLocator(bymonth = range(2,13,2))
+#        )
 
 
         ax.xaxis.set_major_formatter(
@@ -740,13 +760,15 @@ def main():
     labels = tuple(labels)
 
     fig.legend(lines, labels, 'lower right', ncol = 1)
-    fig.text(0.05, 0.5, 'Streamflow (${\\rm m^3/s}$)',
-                  rotation=90,
-                  ha = 'center', va = 'center'
-                  )
+#    fig.text(0.05, 0.5, "Streamflow (${\\rm m^3/s}$)",
+#                  rotation=90,
+#                  ha = 'center', va = 'center'
+#                  )
 
+
+    fig.tight_layout()
     fig.savefig('performance_error.png')
-    plt.tight_layout()
+
 
 
 
@@ -905,8 +927,7 @@ def plot_drainage_scatter(stations, grid_drainage):
     x = plt.xlim()
     plt.plot(x,x, color = 'k')
 
-
-    plt.savefig('drainage_area_scatter.png', bbox_inches = 'tight')
+    plt.savefig('drainage_area_scatter.png')
     pass
 
 

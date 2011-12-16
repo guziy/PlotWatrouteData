@@ -65,10 +65,6 @@ def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamf
 
 
 
-    #zoom to domain
-    selected_x = xs[i_indices, j_indices]
-    selected_y = ys[i_indices, j_indices]
-    x_min, x_max, y_min, y_max = plot_utils.get_ranges(selected_x, selected_y)
 
     #plot mean change
 
@@ -95,8 +91,6 @@ def calculate_seasonal_changes_in_mean_stfl_and_plot(folder_path = 'data/streamf
         basemap.pcolormesh( xs, ys, to_plot.copy(), cmap = mpl.cm.get_cmap(name = "gray", lut = 3),
                            vmin = -1, vmax = 1, ax = plot_axes)
 
-#    plt.xlim(x_min, x_max)
-#    plt.ylim(y_min, y_max)
 
 
 
@@ -125,10 +119,11 @@ def calculate_mean_change_and_plot_for_all_seasons():
     months = [(12,1,2), (3,4,5), (6,7,8), (9,10,11)]
     folder_path = 'data/streamflows/hydrosheds_euler9'
 
+    #members.all_current = [members.all_current[4]]
 
     gs = gridspec.GridSpec(3,2)
     #gs.update()
-    plot_utils.apply_plot_params(width_pt= 800, font_size=15, aspect_ratio=2)
+    plot_utils.apply_plot_params(width_pt= None, font_size=9, aspect_ratio=2.5)
     #plt.subplots_adjust( wspace = 0.0)
     i = 0
     for  row in xrange(1,3):
@@ -153,9 +148,9 @@ def calculate_mean_change_and_plot_for_all_seasons():
 #    ax_cb = divider.append_axes("right", "5%", pad="3%")
 #    plt.colorbar(cax=ax_cb)
     print "laying out"
-    ax_plot.figure.tight_layout( w_pad=0)
+    ax_plot.figure.tight_layout()
     print "saving"
-    ax_plot.figure.savefig('mean_seasonal_change.png')
+    ax_plot.figure.savefig('mean_seasonal_change_%s.png' % members.all_current[0])
     pass
 
 
