@@ -8,7 +8,7 @@ __date__ ="$3 dec. 2010 11:21:58$"
 
 import numpy as np
 import application_properties
-application_properties.set_current_directory()
+
 from datetime import datetime, timedelta
 
 from netCDF4 import Dataset
@@ -1237,6 +1237,7 @@ def plot_high_low_occ_together(high_event_duration = timedelta(days = 1),
 
 
 if __name__ == "__main__":
+    application_properties.set_current_directory()
     data_folder = 'data/streamflows/hydrosheds_euler9'
 #compare current and future occurences
     main(data_folder = data_folder, event_duration = timedelta(days = 15), prefix = 'low', high_flow = False)
