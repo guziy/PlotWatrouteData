@@ -57,5 +57,7 @@ def default_basemap_scatter():
 
 
 if __name__ == "__main__":
+    import matplotlib as mpl
+    print mpl.__version__
     default_basemap_scatter()
     print "Hello World"
