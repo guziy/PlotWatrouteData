@@ -103,6 +103,7 @@ def main():
     ax.plot(times, data, label = members.control_id)
 
 
+
     ax.xaxis.set_major_locator(
             mpl.dates.MonthLocator(bymonth = range(2,13,2))
     )

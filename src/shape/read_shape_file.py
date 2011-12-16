@@ -25,10 +25,17 @@ def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_
     latlong.ImportFromProj4("+proj=latlong")
     result = []
 
+
+
     feature = layer.GetNextFeature()
     while feature:
         geom = feature.GetGeometryRef()
         geom.TransformTo(latlong)
+
+
+        #get fields of the feature
+#        for i in xrange(feature.GetFieldCount()):
+#            print feature.GetField(i)
 
 #        print geom.ExportToWkt()
 
@@ -36,10 +43,11 @@ def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_
         boundary = polygon.exterior
         coords = np.zeros(( len(boundary.coords), 2))
         for i, the_coord in enumerate(boundary.coords):
-            
+
+
 #            if feature.GetFieldAsString('abr').lower() == 'rdo':
 #                print the_coord[0], the_coord[1]
-            if basemap != None:
+            if basemap is not None:
                 coords[i, 0], coords[i, 1] = basemap( the_coord[0], the_coord[1] )
 
         result.append(Polygon(coords, facecolor = 'none', linewidth = linewidth, edgecolor = edgecolor))
@@ -89,6 +97,6 @@ def reproject_to_latlon_and_save_shape(path = 'data/shape/contour_bv_MRCC/Bassin
     
 
 if __name__ == "__main__":
-#    get_features_from_shape(None)
-    reproject_to_latlon_and_save_shape()
+    get_features_from_shape(None)
+#    reproject_to_latlon_and_save_shape()
     print "Hello World"

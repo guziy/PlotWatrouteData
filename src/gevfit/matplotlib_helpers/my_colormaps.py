@@ -71,7 +71,11 @@ def get_diff_colormap(ncolors = 1024):
     
     return mpl.colors.LinearSegmentedColormap('diff_colormap', cdict, ncolors)
 
-def get_red_blue_colormap(ncolors = 1024):
+
+
+
+
+def get_red_blue_colormap(ncolors = 1024, negative_part = None, positive_part = None):
     red_numbers = [
         0.600000023841858,
         0.723529458045960,

@@ -8,15 +8,15 @@ from datetime import timedelta
 from datetime import datetime
 import netCDF4 as nc
 from netCDF4 import chartostring
-from mpl_toolkits.basemap import NetCDFFile
+#from mpl_toolkits.basemap import NetCDFFile
 
 
 
 
-def get_field_from_file(path = '', field_name = ''):
-    '''
+def get_field_from_file(path = '', field_name = 'water_discharge'):
+    """
     Returns None if the requested field is not in the file
-    '''
+    """
     ds = nc.Dataset(path)
     print 'field name = ', field_name
 
@@ -31,21 +31,14 @@ def get_field_from_file(path = '', field_name = ''):
 
 def get_data_from_file(path, field_name = 'water_discharge'):
     date_format = '%Y_%m_%d_%H_%M'
-    print 'field name = ', field_name
     print path
-    ds = NetCDFFile(path, 'r')
-    print ds.variables.keys()
+    ds = nc.Dataset(path)
 
     #dims: time, cell_index
     discharge = ds.variables[field_name][:]
-    print discharge.shape
-
 
     times = ds.variables['time'][:]
-    print times.shape
-    
     times = chartostring(times)
-    print times.shape, times[-1]
 
 
     if ds.variables.has_key('x_index'):
@@ -58,14 +51,14 @@ def get_data_from_file(path, field_name = 'water_discharge'):
 
     date_times = map(lambda x: datetime.strptime( x , date_format ), times)
     ds.close()
-    print date_times[-1]
+
 
 
     return discharge, date_times, x_indices, y_indices
 
 
 #get i_indices and j_indices from a file
-def get_indices_from_file(path = 'data/streamflows/hydrosheds_euler8/aex_discharge_1970_01_01_00_00.nc'):
+def get_indices_from_file(path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'):
     fpin = nc.Dataset(path)
     vars = fpin.variables
 
@@ -91,10 +84,10 @@ def get_period_minima_dates(streamflows, times,
     for i, time in enumerate(times):
         time_plus_duration = time + event_duration
         #select by date
-        if start_date != None and time < start_date:
+        if start_date is not None and time < start_date:
             continue
 
-        if end_date != None and time_plus_duration > end_date:
+        if end_date is not None and time_plus_duration > end_date:
             break
 
         #select by month
@@ -186,16 +179,15 @@ def get_period_minima(streamflows, times,
         else:
             break
 
-    print 'av. length = %d' % averaging_length
 
     result = {}
     for i, time in enumerate(times):
         time_plus_duration = time + event_duration
         #select by date
-        if start_date != None and time < start_date:
+        if start_date is not None and time < start_date:
             continue
 
-        if end_date != None and time_plus_duration > end_date:
+        if end_date is not None and time_plus_duration > end_date:
             break
 
         #select by month
@@ -243,10 +235,10 @@ def get_period_maxima_dates(streamflows, times,
     for i, time in enumerate(times):
         time_plus_duration = time + event_duration
         #select by date
-        if start_date != None and time < start_date:
+        if start_date is not None and time < start_date:
             continue
 
-        if end_date != None and time_plus_duration > end_date:
+        if end_date is not None and time_plus_duration > end_date:
             break
 
         #select by month
@@ -293,10 +285,10 @@ def get_period_maxima(streamflows, times,
     for i, time in enumerate(times):
         time_plus_duration = time + event_duration
         #select by date
-        if start_date != None and time < start_date:
+        if start_date is not None and time < start_date:
             continue
 
-        if end_date != None and time_plus_duration > end_date:
+        if end_date is not None and time_plus_duration > end_date:
             break
 
         #select by month
@@ -324,7 +316,8 @@ def get_period_maxima(streamflows, times,
 def get_list_of_annual_maximums_for_domain(streamflows, times,
                       start_date = None, end_date = None,
                       start_month = 1,
-                      end_month = 12, event_duration = timedelta(days = 1)):
+                      end_month = 12, event_duration = timedelta(days = 1)
+                      ):
     result = []
     for pos in range(streamflows.shape[1]):
         the_dict = get_period_maxima(streamflows[:, pos],
@@ -333,14 +326,7 @@ def get_list_of_annual_maximums_for_domain(streamflows, times,
                                             end_date,
                                             start_month, end_month,
                                             event_duration = event_duration)
-
-        sorted_vals = []
-        sorted_keys = the_dict.keys()
-        sorted_keys.sort()
-        for key in sorted_keys:
-            sorted_vals.append(the_dict[key])
-
-        result.append(sorted_vals)
+        result.append(the_dict.values())
     return np.array(result).transpose() #(nyears, nx)
 
 
@@ -362,14 +348,13 @@ def get_list_of_annual_minimums_for_domain(streamflows, times,
                                             start_month, end_month,
                                             event_duration = event_duration)
         result.append(the_dict.values())
-    return result
+    return np.array(result).transpose()
 
 
 
 #streamflow is of dimensions  (nt, n-grid-cells)
 #return 1D array of size n-grid-cells
-
-
+#takes maximum value of all maximums for each point
 def get_maximums_for_domain(streamflows, times,
                       start_date = None, end_date = None,
                       start_month = 1,
@@ -392,6 +377,7 @@ def get_maximums_for_domain(streamflows, times,
 
 #streamflow is of dimensions  (nt, n-grid-cells)
 #return 1D array of size n-grid-cells
+#takes minimum value of all maximums for each point
 def get_minimums_for_domain(streamflows, times,
                       start_date = None, end_date = None,
                       start_month = 1,
@@ -412,32 +398,30 @@ def get_minimums_for_domain(streamflows, times,
 
 
 #selects annual means from data from the interval
-# [start_date; end_date), all data are taken into consideration if
+# [start_date; end_date], all data are taken into consideration if
 # start_date and end_date are None
-#return dictionary {yeari : meani}
+#return dictionary {yeari :  list of annual means [meani]}
 def get_annual_means(streamflows, times, start_date = None, end_date = None):
+    if start_date is None:
+        start_year = times[0].year
+    else:
+        start_year = start_date.year
+
+    if end_date is None:
+        end_year = times[-1].year
+    else:
+        end_year = end_date.year
+
+    years = xrange(start_year, end_year + 1)
+
     result = {}
-    counts = {}
-    for i, time in enumerate(times):
-        if time >= end_date:
-            break
-        if time < start_date:
-            continue
+    for the_year in years:
+        indices = np.where(map(lambda x: x.year == the_year, times))[0]
+        result[the_year] = np.mean(streamflows[indices, :], axis=0)
 
-        the_year = time.year
-        if not result.has_key(the_year):
-            result[the_year] = np.zeros(streamflows.shape[1])
-            counts[the_year] = 0
-            
-        result[the_year] += streamflows[i, :]
-        counts[the_year] += 1
-
-
-
-    for the_year in result.keys():
-        result[the_year] /= float( counts[the_year] )
 
     return result
+
 
 
 def test_select():
@@ -474,11 +458,45 @@ def test_select():
 
 
 
+def get_mean_over_months(times, streamflow, months = range(1,13)):
+    """
+    for calculating seasonal and annual means
+    returns the array of size ncells
+    """
+    select_vector = map( lambda t: t.month in months, times )
+    indices = np.where(select_vector)[0]
+    return np.mean(streamflow[indices, :], axis = 0)
+
+def get_means_over_months_for_each_year(times, streamflow, months = range(1,13)):
+    """
+    for calculating seasonal and annual means
+    returns the dictionary {year: array_of_means_for_all_points_for_year}
+    """
+    start_year = times[0].year
+    end_year = times[-1].year
+
+
+    assert len(times) == streamflow.shape[0]
+
+
+    result = {}
+    select_vector = None
+    for the_year in xrange(start_year, end_year + 1):
+        select_vector = map( lambda t: (t.month in months) and (t.year == the_year), times )
+        indices = np.where(select_vector)[0]
+        result[the_year] = np.mean(streamflow[indices, :], axis=0)
+    print "select_vector length = ", sum(map(int, select_vector))
+    return result
+
+
+
+
+
 
 def get_mean_for_day_of_year(stamp_dates, values):
-    '''
+    """
     Returns daily normals (mean for each day of year)
-    '''
+    """
     surfDict = {}
     for stamp_date, value in zip(stamp_dates, values):
         if surfDict.has_key(stamp_date):

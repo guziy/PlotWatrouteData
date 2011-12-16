@@ -1,3 +1,4 @@
+
 __author__ = 'huziy'
 
 
@@ -6,7 +7,8 @@ from datetime import datetime
 from datetime import timedelta
 import application_properties
 import numpy as np
-
+from scipy.spatial import KDTree
+from util.geo import lat_lon
 
 class CruReader():
     def __init__(self, path ="data/cru_data/CRUTS3.1/cru_ts_3_10.1901.2009.pre.dat.nc"):
@@ -14,11 +16,11 @@ class CruReader():
         Class for reading cru data
         """
         self.path = path
-
         self.ds = nc.Dataset(path)
         self._read_times()
         self._read_coords()
         self._read_data()
+        self._set_kd_tree()
 
 
     def _read_times(self):
@@ -137,17 +139,81 @@ class CruReader():
         self.missing_data = precip.missing_value
 
     def print_file_info(self):
-        print "start date: ", self.times[0]
-        print "end date: ", self.times[-1]
+        if hasattr(self, "times"):
+            print "start date: ", self.times[0]
+            print "end date: ", self.times[-1]
         dlon = self.lons[1] - self.lons[0]
         dlat = self.lats[1] - self.lats[0]
         print "dlon, dlat = {0},{1}".format( dlon, dlat )
 
 
+
+
+    def _set_kd_tree(self):
+        lats_2d, lons_2d = np.meshgrid(self.lats, self.lons)
+        print lons_2d.shape, lats_2d.shape
+        print lons_2d[0,0], lons_2d[-1, 0]
+        print self.data.shape
+        self.kdtree = KDTree(data = zip(lons_2d.ravel(), lats_2d.ravel()))
+
+    def interpolate_to(self, dest_lons = None, dest_lats = None):
+        """
+        Interpolates using IDW (Shepards formula)
+        method from (self.lons, self.lats) to (dest_lons, dest_lats)
+
+        """
+        distances, indices = self.kdtree.query([10.0,10.0], k=4)
+
+
+        #Determine neighbor indices and weights for each destination point
+        neighbor_weights = [] #n_dest_points x 4 (4 weights for each destination point)
+        neighbor_indices = [] #of the same shape as neighbor_weights
+        grid_lon_lat = self.data
+        for dest_lon, dest_lat in zip(dest_lons, dest_lats):
+            deg_dists, indices = self.kdtree.query([dest_lon, dest_lat], k=4)
+
+            neighbor_distances = []
+            for the_index in  indices:
+                lon, lat = grid_lon_lat[the_index]
+                d = lat_lon.get_distance_in_meters(lon, lat, dest_lon, dest_lat)
+                neighbor_distances.append(d)
+
+            neighbor_distances = np.array(neighbor_distances)
+
+
+            neighbor_distances.append(neighbor_distances)
+            neighbor_indices.append(indices)
+
+
+        if not hasattr(indices,  "__iter__"):
+           indices = [indices]
+        for theIndex in indices:
+            print self.kdtree.data[theIndex]
+
+        #for all times, do the interpolation
+        for t in xrange(self.data.shape[0]):
+            pass
+
+
+        print self.kdtree.data[-1]
+        print self.kdtree.data[0]
+        print len(self.kdtree.data)
+
+
+    def get_temporal_evol_of_mean_over(self, dest_lons = None, dest_lats = None, start_date = None, end_date = None):
+        """
+        interpolates to (dest_lons, dest_lats) and then takes mean over domain for
+        the times between start_date and end_date.
+
+        """
+
+        pass
+
+
 def test():
     cr = CruReader()
     cr.print_file_info()
-
+ #   cr.interpolate_to()
 
 if __name__ == '__main__':
     application_properties.set_current_directory()

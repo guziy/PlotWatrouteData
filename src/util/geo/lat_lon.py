@@ -14,10 +14,10 @@ def get_nvector(rad_lon, rad_lat):
 
 #p1 and p2 are geopoint objects
 def get_distance_in_meters(*arg):
-    '''
+    """
     arg = point1, point2
     arg = lon1, lat1, lon2, lat2
-    '''
+    """
     if len(arg) == 2: #if we have 2 geoppoints as an argument
         p1, p2 = arg
         n1 = p1.get_nvector()
@@ -34,6 +34,20 @@ def get_angle_between_vectors(n1, n2):
     dy = np.dot(dy, dy) ** 0.5
     dx = np.dot(n1, n2)
     return atan2(dy, dx)
+
+
+def lon_lat_to_cartesian_normalized(lon, lat):
+    """
+    calculates x,y,z coordinates of a point on a sphere with
+    radius R = 1
+    """
+    lon_r = np.radians(lon)
+    lat_r = np.radians(lat)
+
+    x = np.cos(lat_r) * np.cos(lon_r)
+    y = np.cos(lat_r) * np.sin(lon_r)
+    z = np.sin(lat_r)
+    return x,y,z
 
 
 

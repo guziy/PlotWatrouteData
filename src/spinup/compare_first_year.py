@@ -73,8 +73,6 @@ class Plotter:
     def main(cls, path_to_spinups_dir = "data/spinup_testing"):
         data_list = []
 
-
-
         domain_mask = compare_swe.get_domain_mask()
 
         for fileName in os.listdir(path_to_spinups_dir):

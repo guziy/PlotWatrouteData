@@ -4,8 +4,8 @@ __author__="huziy"
 __date__ ="$22 oct. 2010 12:00:55$"
 
 
-from mpl_toolkits.basemap import NetCDFFile
-import data.data_select as data_select
+#from mpl_toolkits.basemap import NetCDFFile
+#import data.data_select as data_select
 from math import isnan
 from math import isinf
 from plot_utils import draw_meridians_and_parallels
@@ -69,7 +69,7 @@ import pickle
 #set current directory to the root directory of the project
 application_properties.set_current_directory()
 
-import lmoments
+#import lmoments
 
 from plot2D.map_parameters import polar_stereographic
 

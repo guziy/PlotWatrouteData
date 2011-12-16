@@ -37,9 +37,9 @@ class SweHolder:
 
 
     def get2DLonsAndLats(self):
-        '''
+        """
         point (i = 0, j = 0) is at the lower left corner of the domain
-        '''
+        """
         lon0 = self.lowerLeft.longitude
         lat0 = self.lowerLeft.latitude
 
@@ -72,9 +72,9 @@ class SweHolder:
 
     def getTemporalMeanDataFromNetCDFforPoints(self, geopointList = [], startDate = None,
                                              endDate = None, months = []):
-        '''
+        """
         months - months of year over which the average is taken
-        '''
+        """
         i_indices = []
         j_indices = []
         for point in geopointList:

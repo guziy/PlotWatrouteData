@@ -4,19 +4,21 @@ __date__ ="$Apr 1, 2011 11:54:33 AM$"
 
 
 
-from mpl_toolkits.basemap import NetCDFFile
+from mpl_toolkits.basemap import NetCDFFile, Basemap
 
 import numpy as np
 
 import matplotlib.pyplot as plt
 
 import application_properties
-application_properties.set_current_directory()
+
 
 import readers.read_infocell as infocell
 from math import *
 
 from plot2D.map_parameters import polar_stereographic
+from netCDF4 import Dataset
+
 
 xs = polar_stereographic.xs
 ys = polar_stereographic.ys
@@ -48,6 +50,35 @@ title_font_size = font_size
 
 import pylab
 pylab.rcParams.update(params)
+
+
+def plot_drainage_areas(path = "data/hydrosheds/test_using_splitting_amno.nc"):
+    ds = Dataset(path)
+    #basemap = polar_stereographic.basemap
+    basemap =  Basemap()
+    lons = ds.variables["lon"][:]
+    lats = ds.variables["lat"][:]
+    channel_slope = ds.variables["slope"][:]
+
+    lons[lons < 0] += 360
+
+    x, y = basemap(lons, lats)
+
+
+
+
+    acc_area = ds.variables["accumulation_area"][:]
+    acc_area = np.log(acc_area)
+    acc_area = np.ma.masked_where(channel_slope < 0, acc_area)
+
+    basemap.pcolormesh(x, y, acc_area)
+    basemap.drawcoastlines()
+    plt.colorbar()
+    plt.xlim(x.min(), x.max())
+    plt.ylim(y.min(), y.max())
+    plt.show()
+
+
 
 
 def plot_source_flow_accumulation(sub = -1, vmin = 0, vmax = 10):
@@ -114,7 +145,7 @@ def plot_scatter(path = 'data/hydrosheds/corresponding_DA.nc'):
     nc = NetCDFFile(basin_path)
     mask = None
     for k, v in nc.variables.iteritems():
-        if mask == None:
+        if mask is None:
             mask = v.data[:,:].copy()
         else:
             mask += v.data
@@ -202,5 +233,7 @@ def main():
     pass
 
 if __name__ == "__main__":
-    main()
+    application_properties.set_current_directory()
+    #main()
+    plot_drainage_areas()
     print "Hello World"

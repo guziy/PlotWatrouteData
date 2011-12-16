@@ -37,14 +37,14 @@ class ModelPoint(DataPoint):
 
     def __str__(self):
         result = 'grid point: '
-        if self.ix != None:
+        if self.ix is not None:
             result += 'ix = ' + str( self.ix )
             result += ', '
-        if self.iy != None:
+        if self.iy is not None:
             result += 'iy = ' + str( self.iy )
-        if self._longitude != None:
+        if self._longitude is not None:
             result += '(lon, lat) = (%f, %f); ' % (self._longitude, self._latitude)
-        if self.id != None:
+        if self.id is not None:
             result += self.id
         return result
 
