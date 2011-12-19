@@ -1,6 +1,6 @@
 from matplotlib.font_manager import FontProperties
 from matplotlib.transforms import Affine2D, Bbox
-from mpl_toolkits.basemap import NetCDFFile
+#from mpl_toolkits.basemap import NetCDFFile
 import os.path
 import sys
 __author__="huziy"
@@ -8,6 +8,7 @@ __date__ ="$3 dec. 2010 11:21:58$"
 
 import numpy as np
 import application_properties
+print sys.path
 
 from datetime import datetime, timedelta
 
