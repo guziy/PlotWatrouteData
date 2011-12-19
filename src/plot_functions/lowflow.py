@@ -7,6 +7,8 @@ __author__="huziy"
 __date__ ="$3 dec. 2010 11:21:58$"
 
 import numpy as np
+
+print sys.path
 import application_properties
 print sys.path
 
