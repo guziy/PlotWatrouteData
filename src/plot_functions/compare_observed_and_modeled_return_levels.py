@@ -251,7 +251,9 @@ def plot_boxplot(data, title = "", file_name = "", labels = None, point_ids = No
 
 
 def main():
-    path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
+    #path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
+
+    path = "data/streamflows/hydrosheds_rk4_changed_partiotioning/aex_discharge_1970_01_01_00_00.nc"
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na.nc'
     data = pe_calc.get_station_and_corresponding_model_data(path = path)
     delete_not_continuous(data)

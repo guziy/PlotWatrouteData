@@ -48,6 +48,7 @@ class Plotter:
         self.basemap.drawcoastlines()
         plt.title('accumulation_area')
         plt.colorbar()
+        plt.savefig("acc_area.png")
 
 
         plt.figure()
@@ -91,7 +92,8 @@ class Plotter:
         pass
 
 if __name__ == "__main__":
-    Plotter(path = 'data/hydrosheds/directions_na_dx0.5.nc').plot_accumulation_area()
+    Plotter(path="data/hydrosheds/directions_africa_dx0.44deg.nc").plot_accumulation_area()
+    #Plotter(path = 'data/hydrosheds/directions_na_dx0.5.nc').plot_accumulation_area()
     #Plotter(path = 'data/hydrosheds/directions_qc_amno.nc').plot_accumulation_area()
     plt.show()
 

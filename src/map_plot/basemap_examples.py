@@ -1,6 +1,3 @@
-# To change this template, choose Tools | Templates
-# and open the template in the editor.
-
 __author__="huziy"
 __date__ ="$4 juil. 2010 16:08:46$"
 
@@ -41,14 +38,14 @@ def default_basemap_scatter():
 
     dx = 45000.0
 
-    px, py = m(-61.5*dx, -179.8*dx)
+    [px, py] = m(-61.5*dx, -179.8*dx)
     m.scatter(px, py , c="red")
     draw_meridians_and_parallels(m, 25)
 
-    ymin, ymax = plt.ylim()
+    [ymin, ymax] = plt.ylim()
     plt.ylim(ymin + 0.12 * (ymax - ymin), ymax * 0.32)
 
-    xmin, xmax = plt.xlim()
+    [xmin, xmax] = plt.xlim()
     plt.xlim(xmin + (xmax - xmin) * 0.65, 0.85*xmax)
 
 

@@ -23,7 +23,7 @@ class MapParameters():
         self.dy = None
 
         #initialize fields
-        self.xs, self.ys, self.basemap = self.init_map()
+        [self.xs, self.ys, self.basemap] = self.init_map()
    
 
 
@@ -31,7 +31,7 @@ class MapParameters():
         """
         get indices of the point closest to the coord (lon, lat)
         """
-        x, y = latlon2psxy(lat, lon)
+        [x, y] = latlon2psxy(lat, lon)
         return round(x - self.x_min), round(y - self.y_min)
 
 
@@ -44,7 +44,7 @@ class MapParameters():
 
         #coordinates with respect to the pole, divided by
         #dx
-        xc, yc = latlon2psxy(lat_center, lon_center)
+        [xc, yc] = latlon2psxy(lat_center, lon_center)
 
         self.lon_center = lon_center
         self.lat_center = lat_center
@@ -77,15 +77,15 @@ class MapParameters():
 
     def init_map(self):
         """initializes longitudes and latitudes of grid"""
-        self.lons, self.lats = self.get_longitudes_and_latitudes( self.n_cols, self.n_rows)
+        [self.lons, self.lats] = self.get_longitudes_and_latitudes( self.n_cols, self.n_rows)
         m = Basemap(projection = 'npstere', #area_thresh = 10000,
-                        lat_ts = 60, lat_0 = 60, lon_0 = -115, boundinglat = 40, resolution='i')
+                        lat_ts = 60, lat_0 = 60, lon_0 = -115, boundinglat = 0, resolution='i')
 
 #        m = Basemap(projection = 'npstere',
 #                        lat_ts = 60, lat_0 = -10, lon_0 = -90, boundinglat = 40, resolution='i')
 #
 
-        xs, ys = m(self.lons, self.lats)
+        [xs, ys] = m(self.lons, self.lats)
         return xs, ys, m
 
     def get_resolution_meters(self):
@@ -93,10 +93,10 @@ class MapParameters():
 
 
 def zoom_on_quebec(plt):
-    ymin, ymax = plt.ylim()
+    [ymin, ymax] = plt.ylim()
     plt.ylim(ymin + 0.12 * (ymax - ymin), ymax * 0.32)
 
-    xmin, xmax = plt.xlim()
+    [xmin, xmax] = plt.xlim()
     plt.xlim(xmin + (xmax - xmin) * 0.65, 0.85*xmax)
 
 
@@ -107,7 +107,7 @@ def test():
     clon = polar_stereographic.lon_center
     clat = polar_stereographic.lat_center
     print clon, clat
-    i, j = polar_stereographic.get_indices_of_the_closest_point_to(clon, clat)
+    [i, j] = polar_stereographic.get_indices_of_the_closest_point_to(clon, clat)
     print i,j
 
 if __name__ == "__main__":

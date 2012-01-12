@@ -102,7 +102,7 @@ class Station:
         series_list = []
         current_series = []
         for d in self.dates:
-            if len(current_series) == 0:
+            if not len(current_series):
                 current_series.append(d)
                 series_list.append(current_series)
             else:

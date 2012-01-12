@@ -51,7 +51,8 @@ ys = polar_stereographic.ys
 
 
 #needed for calculation of mean of data for each day
-def create_dates_of_year(date_list = [], year = 2000):
+def create_dates_of_year(date_list = None, year=2000):
+    if not date_list: date_list = []
     result = []
 
     for d1 in date_list:
@@ -105,7 +106,7 @@ def get_corresponding_station(lon, lat, cell_drain_area_km2, station_list):
                 objective = objective1
         
     
-    if objective <= 0.7:
+    if objective <= 1.0:
         return result
     else:
         return None
@@ -308,7 +309,7 @@ def get_connected_cells(directions_path):
     ds.close()
 
 
-    nx, ny = next_i.shape
+    [nx, ny] = next_i.shape
 
     cells = [[Cell(ix = i, jy = j) for j in xrange(ny)]
                 for i in xrange(nx)]
@@ -320,7 +321,7 @@ def get_connected_cells(directions_path):
             jNext = next_j[i, j]
             theCell = cells[i][j]
             # @type theCell Cell
-            if iNext >= 0 and jNext >= 0:
+            if iNext >= 0 <= jNext:
                 theCell.set_next(cells[iNext][jNext])
 
     return cells
@@ -371,8 +372,6 @@ def plot_total_precip_for_upstream(directions_file = 'data/hydrosheds/directions
                                   subplot_count=subplot_count,
                                   start_date = start_date, end_date=end_date
                                   )
-
-
     pass
 
 def plot_swe_for_upstream(directions_file = 'data/hydrosheds/directions_for_streamflow9.nc',
@@ -407,7 +406,9 @@ def plot_precip_for_upstream(i_index, j_index, station_id):
     """
     pass
 
-
+selected_station_ids = [
+    "104001", "103715", "093806", "093801", "092715", "081006", "061502", "080718", "040830"
+]
 def main():
     """
 
@@ -419,9 +420,10 @@ def main():
 
 
     #pylab.rcParams.update(params)
-    path_format = 'data/streamflows/hydrosheds_euler9/%s_discharge_1970_01_01_00_00.nc'
-
-    path_to_analysis_driven = path_format % members.control_id
+    #path_format = 'data/streamflows/hydrosheds_euler9/%s_discharge_1970_01_01_00_00.nc'
+    #path_format = "data/streamflows/hydrosheds_rk4_changed_partiotioning/%s_discharge_1970_01_01_00_00.nc"
+    path_format = "data/streamflows/piloted_by_ecmwf/ecmwf_nearest_neighbor_discharge_1970_01_01_00_00.nc"
+    path_to_analysis_driven = path_format #% members.control_id
 
     simIdToData = {}
     simIdToTimes = {}
@@ -431,9 +433,9 @@ def main():
 
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
 
-    old = True #in the old version drainage and lon,lats in the file are 1D
+    old = False #in the old version drainage and lon,lats in the file are 1D
 
-    data, times, i_list, j_list = data_select.get_data_from_file(path_to_analysis_driven)
+    [ data, times, i_list, j_list ] = data_select.get_data_from_file(path_to_analysis_driven)
     if not old:
         da_2d = data_select.get_field_from_file(path_to_analysis_driven, 'accumulation_area')
         lons = data_select.get_field_from_file(path_to_analysis_driven, field_name = 'longitude')
@@ -509,8 +511,14 @@ def main():
         index = indexObj.positionIndex
         station = get_corresponding_station(lons[i, j], lats[i, j], da_2d[i, j], stations)
 
+
         if station is None or station in selected_stations:
             continue
+
+        #if you want to compare with stations add their ids to the selected
+        if station.id not in selected_station_ids:
+            continue
+
 
         #skip some stations
         if station.id in skip_ids:

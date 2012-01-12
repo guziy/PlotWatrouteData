@@ -110,15 +110,15 @@ def test():
     )
 
     server.retrieve({
-    'dataset' : "interim_mnth",
-    'date'    : "20090101/to/20090110",
-    'time'    : "12",
-    'step'    : "0",
-    'levtype' : "pl",
-    'type'    : "an",
-    'param'   : "130.128",
-    'levelist' : "500/1000",
-    'area'    : "60/-120/30/-60",
+    'dataset' : "interim_daily",
+    'date'    : "19800101/to/19800131",
+    'time'    : "00:00:00",
+    'step'    : "3",
+    'levtype' : "sfc",
+    'type'    : "fc",
+    'param'   : "182.128",
+    #'levelist' : "500/1000",
+    #'area'    : "60/-120/30/-60",
     'target'  : "data/era_interim/data.grib"
     })
 

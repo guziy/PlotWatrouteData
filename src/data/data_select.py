@@ -30,6 +30,9 @@ def get_field_from_file(path = '', field_name = 'water_discharge'):
 
 
 def get_data_from_file(path, field_name = 'water_discharge'):
+    """
+    returns streamflow, times, x_indices, y_indices
+    """
     date_format = '%Y_%m_%d_%H_%M'
     print path
     ds = nc.Dataset(path)
