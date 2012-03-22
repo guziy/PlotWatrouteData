@@ -10,8 +10,11 @@ import numpy as np
 from scipy.spatial import KDTree
 from util.geo import lat_lon
 
+import pandas
+
 class CruReader():
-    def __init__(self, path ="data/cru_data/CRUTS3.1/cru_ts_3_10.1901.2009.pre.dat.nc"):
+    def __init__(self, path ="data/cru_data/CRUTS3.1/cru_ts_3_10.1901.2009.pre.dat.nc",
+                 var_name = "pre", create_tree_for_interpolation = True):
         """
         Class for reading cru data
         """
@@ -19,9 +22,15 @@ class CruReader():
         self.ds = nc.Dataset(path)
         self._read_times()
         self._read_coords()
-        self._read_data()
-        self._set_kd_tree()
+        self._read_data(var_name = var_name)
+        if create_tree_for_interpolation:
+            self._set_kd_tree()
 
+    def get_time_step(self):
+        """
+        :rtype: datetime.timedelta
+        """
+        return self.times[1] - self.times[0]
 
     def _read_times(self):
         t_days = self.ds.variables["time"]
@@ -29,6 +38,29 @@ class CruReader():
         self.times = map(lambda dt : ref_date + timedelta(days = dt), t_days[:])
         print "cru, number of datetime objects: ",len(self.times)
         print( ref_date )
+
+
+    def get_monthly_normals(self, start_date = None, end_date = None):
+        """
+        :type start_date: datetime.datetime
+        :type end_date: datetime.datetime
+
+        returns the array with shape (month, lon, lat)
+        """
+        start_date = self.times[0] if start_date is None else start_date
+        end_date = self.times[-1] if end_date is None else end_date
+
+        result = np.zeros((12,) + self.data.shape[1:])
+
+        for month in xrange(1,13):
+            indices = map(
+               lambda x: start_date <= x <= end_date and
+                         x.month == month, self.times
+            )
+            indices = np.where(indices)[0]
+            result[month-1] = np.mean(self.data[indices, :, :], axis=0)
+
+        return result
 
 
     def get_spatial_integral_for_points(self, the_lons, the_lats):
@@ -126,13 +158,14 @@ class CruReader():
         """
         self.lons = self.ds.variables["lon"][:]
         self.lats = self.ds.variables["lat"][:]
+        self.lats_2d, self.lons_2d = np.meshgrid(self.lats, self.lons)
 
-    def _read_data(self):
+    def _read_data(self, var_name = "pre"):
         """
         gets data from the file
 
         """
-        precip = self.ds.variables["pre"]
+        precip = self.ds.variables[var_name]
         self.data = precip[:]
         #I prefer longitude x-axis
         self.data = np.transpose( self.data, axes = (0, 2, 1))
@@ -151,53 +184,45 @@ class CruReader():
 
     def _set_kd_tree(self):
         lats_2d, lons_2d = np.meshgrid(self.lats, self.lons)
+        x, y, z = lat_lon.lon_lat_to_cartesian(lons_2d.flatten(), lats_2d.flatten())
         print lons_2d.shape, lats_2d.shape
         print lons_2d[0,0], lons_2d[-1, 0]
         print self.data.shape
-        self.kdtree = KDTree(data = zip(lons_2d.ravel(), lats_2d.ravel()))
+        self.kdtree = KDTree(data = zip(x, y, z))
 
-    def interpolate_to(self, dest_lons = None, dest_lats = None):
+    def interpolate_data_to(self, data_in, lons2d, lats2d, nneighbors = 4):
         """
-        Interpolates using IDW (Shepards formula)
-        method from (self.lons, self.lats) to (dest_lons, dest_lats)
+        Interpolates data_in to the grid defined by (lons2d, lats2d)
+        assuming that the data_in field is on the initial CRU grid
 
+        interpolate using 4 nearest neighbors and inverse of squared distance
         """
-        distances, indices = self.kdtree.query([10.0,10.0], k=4)
 
+        x_out, y_out, z_out = lat_lon.lon_lat_to_cartesian(lons2d.flatten(), lats2d.flatten())
 
-        #Determine neighbor indices and weights for each destination point
-        neighbor_weights = [] #n_dest_points x 4 (4 weights for each destination point)
-        neighbor_indices = [] #of the same shape as neighbor_weights
-        grid_lon_lat = self.data
-        for dest_lon, dest_lat in zip(dest_lons, dest_lats):
-            deg_dists, indices = self.kdtree.query([dest_lon, dest_lat], k=4)
+        dst, ind = self.kdtree.query(zip(x_out, y_out, z_out), k=nneighbors)
 
-            neighbor_distances = []
-            for the_index in  indices:
-                lon, lat = grid_lon_lat[the_index]
-                d = lat_lon.get_distance_in_meters(lon, lat, dest_lon, dest_lat)
-                neighbor_distances.append(d)
+        data_in_flat = data_in.flatten()
 
-            neighbor_distances = np.array(neighbor_distances)
+        inverse_square = 1.0 / dst ** 2
+        if len(dst.shape) > 1:
+            norm = np.sum(inverse_square, axis=1)
+            norm = np.array( [norm] * dst.shape[1] ).transpose()
+            coefs = inverse_square / norm
+            data_out_flat = np.sum( coefs * data_in_flat[ind], axis= 1)
+        elif len(dst.shape) == 1:
+            data_out_flat = data_in_flat[ind]
+        else:
+            raise Exception("Could not find neighbor points")
+        return np.reshape(data_out_flat, lons2d.shape)
 
-
-            neighbor_distances.append(neighbor_distances)
-            neighbor_indices.append(indices)
-
-
-        if not hasattr(indices,  "__iter__"):
-           indices = [indices]
-        for theIndex in indices:
-            print self.kdtree.data[theIndex]
-
-        #for all times, do the interpolation
-        for t in xrange(self.data.shape[0]):
-            pass
-
-
-        print self.kdtree.data[-1]
-        print self.kdtree.data[0]
-        print len(self.kdtree.data)
+    def get_seasonal_mean_field(self, months = None, start_date = None, end_date = None):
+        if start_date is None: start_date = self.times[0]
+        if end_date is None: end_date = self.times[-1]
+        bool_vector = np.where(map( lambda x: (x.month in months) and
+                                              (start_date <= x) and
+                                              (x <= end_date), self.times))[0]
+        return np.mean(self.data[bool_vector, :, :], axis=0)
 
 
     def get_temporal_evol_of_mean_over(self, dest_lons = None, dest_lats = None, start_date = None, end_date = None):

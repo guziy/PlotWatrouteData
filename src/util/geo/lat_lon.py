@@ -49,6 +49,18 @@ def lon_lat_to_cartesian_normalized(lon, lat):
     z = np.sin(lat_r)
     return x,y,z
 
+def lon_lat_to_cartesian(lon, lat):
+    """
+    calculates x,y,z coordinates of a point on a sphere with
+    radius R = EARTH_RADIUS_METERS
+    """
+    lon_r = np.radians(lon)
+    lat_r = np.radians(lat)
+
+    x =  EARTH_RADIUS_METERS * np.cos(lat_r) * np.cos(lon_r)
+    y = EARTH_RADIUS_METERS * np.cos(lat_r) * np.sin(lon_r)
+    z = EARTH_RADIUS_METERS * np.sin(lat_r)
+    return x,y,z
 
 
 #nvectors.shape = (3, nx, ny)

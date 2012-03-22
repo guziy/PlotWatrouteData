@@ -75,7 +75,7 @@ def get_diff_colormap(ncolors = 1024):
 
 
 
-def get_red_blue_colormap(ncolors = 1024, negative_part = None, positive_part = None):
+def get_red_blue_colormap(ncolors = 1024, reversed = False):
     red_numbers = [
         0.600000023841858,
         0.723529458045960,
@@ -132,6 +132,11 @@ def get_red_blue_colormap(ncolors = 1024, negative_part = None, positive_part = 
         1,
         0.549019634723663
     ]
+
+    if reversed:
+        blue_numbers.reverse()
+        red_numbers.reverse()
+        green_numbers.reverse()
 
     dx = 1.0 / float(len(red_numbers) - 1)
     reds = []

@@ -409,6 +409,8 @@ def plot_precip_for_upstream(i_index, j_index, station_id):
 selected_station_ids = [
     "104001", "103715", "093806", "093801", "092715", "081006", "061502", "080718", "040830"
 ]
+
+
 def main():
     """
 
@@ -420,16 +422,16 @@ def main():
 
 
     #pylab.rcParams.update(params)
-    #path_format = 'data/streamflows/hydrosheds_euler9/%s_discharge_1970_01_01_00_00.nc'
+    path_format = 'data/streamflows/hydrosheds_euler9/%s_discharge_1970_01_01_00_00.nc'
     #path_format = "data/streamflows/hydrosheds_rk4_changed_partiotioning/%s_discharge_1970_01_01_00_00.nc"
-    path_format = "data/streamflows/piloted_by_ecmwf/ecmwf_nearest_neighbor_discharge_1970_01_01_00_00.nc"
-    path_to_analysis_driven = path_format #% members.control_id
+    #path_format = "data/streamflows/piloted_by_ecmwf/ecmwf_nearest_neighbor_discharge_1970_01_01_00_00.nc"
+    path_to_analysis_driven = path_format % members.control_id
 
     simIdToData = {}
     simIdToTimes = {}
     for the_id in members.current_ids:
         thePath = path_format % the_id
-        simIdToData[the_id], simIdToTimes[the_id], i_list, j_list = data_select.get_data_from_file(thePath)
+        [simIdToData[the_id], simIdToTimes[the_id], i_list, j_list] = data_select.get_data_from_file(thePath)
 
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
 

@@ -49,8 +49,8 @@ def calculate_accumulation_index(cells):
 
 def compare():
     path_hydrosheds = 'data/hydrosheds/africa_044/w001001.adf'
-    path_huziy = 'data/hydrosheds/directions_af_parallel.nc'
-
+    #path_huziy = 'data/hydrosheds/directions_af_parallel.nc'
+    path_huziy = "data/hydrosheds/directions_africa_dx0.44deg.nc"
     data_huziy = nc.Dataset(path_huziy).variables['flow_direction_value'][:]
     data_huziy = data_huziy[21:215, 20:221]
 

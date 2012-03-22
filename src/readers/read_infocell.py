@@ -1,27 +1,18 @@
 from matplotlib.font_manager import FontProperties
+from data import direction_and_value
 
 __author__="huziy"
 __date__ ="$23 mai 2010 13:59:05$"
 
 from mpl_toolkits.basemap import Basemap
-import application_properties
-from shape.read_shape_file import get_features_from_shape
-from plot2D.calculate_mean_map import *
 
 
-from util.convert import amno_convert_list
-from util.convert import *
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 #from mpl_toolkits.basemap import NetCDFFile
 from netCDF4 import Dataset
-from math import *
-import pylab
-from util.geo.ps_and_latlon import *
-from math import *
-from util.plot_utils import draw_meridians_and_parallels
 from matplotlib.patches import Rectangle
 
 
@@ -39,7 +30,6 @@ from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 
 from matplotlib.patches import RegularPolygon
 
-import util.plot_utils as plot_utils
 import wrf_static_data.read_variable as wrf
 
 from util import plot_utils
@@ -201,51 +191,54 @@ def read_sand(file = 'data/infocell/amno_180x172_sand.nc'):
     pass
 
 def get_cells_from_infocell(path):
+    """
+    returns 1d list of the cells of interest
+    """
     f = open(path)
-    temp_cells = []
-    nexts = []
-
-
     lines = f.readlines()
 
     del lines[0] #delete header
-    del lines[-1] #delete last line
 
     f.close()
 
+    id_to_cell = {}
+
+    lines = map(lambda x: x.strip(), lines)
+    cell_list = []
     for line in lines:
-        if line.strip() == "":
+        if line == "":
             continue
         fields = line.split()
-        i = int(fields[1]) - 1
-        j = int(fields[2]) - 1
-        the_cell = Cell(id = 100)
+        the_id = int(fields[0])
+        i = int(fields[1])
+        j = int(fields[2])
+        the_cell = cells[i][j]
+        id_to_cell[the_id] = the_cell
+        assert isinstance(the_cell, Cell)
         the_cell.set_coords(i,j)
-        temp_cells.append(the_cell)
-        nexts.append( int(fields[6]) - 1 )
+        the_cell.drainage = float(fields[3])
+        the_cell.chslp = float(fields[4])
+        the_cell.next_id = int(fields[6])
+        the_cell.area = float(fields[7])
+        the_cell.lon = float(fields[10])
+        the_cell.lat = float(fields[11])
+        the_cell.channel_length = float(fields[12])
+        the_cell.id = the_id
+        cell_list.append(the_cell)
 
-    none_next = len(temp_cells)
-    print 'none next is: ', none_next
-
-
-    for cell, next_index in zip(temp_cells, nexts):
-        #there is a dummy cell which signals that the current cell does not have next
-        if next_index == none_next:
-            cell.next = None
+    dummy_cell = cell_list.pop()
+    print("dummy cell id {0}".format(dummy_cell.id))
+    assert isinstance(dummy_cell, Cell)
+    for the_cell in cell_list:
+        assert isinstance(the_cell, Cell)
+        if the_cell.next_id == dummy_cell.id:
+            the_cell.next_id = -1
+            the_cell.set_next(None)
             continue
-        cell.next = temp_cells[next_index]
 
-
-    for cell in temp_cells:
-        if cell.next is not None:
-            next_cell = cell.next
-
-            #if the direction was already assigned from another source
-            if cells[cell.x][cell.y].next is not None:
-                continue
-            cells[cell.x][cell.y].set_next( cells[next_cell.x][next_cell.y] )
-    pass
-
+        next_cell = id_to_cell[the_cell.next_id]
+        the_cell.set_next(next_cell)
+    return cell_list
 
 
 def get_index_distance(cell1, cell2):
@@ -267,6 +260,68 @@ def get_distance_along_flow(cell1, cell2):
     return x
 
 
+def infocell_txt_to_netcdf(txt_path = "data/streamflows/hydrosheds_euler9/infocell_QC2.txt",
+                           nc_path = "infocell9.nc"):
+    """
+    infocell file to the currently used netcdf file format
+    """
+    cells = get_cells_from_infocell(txt_path)
+
+    ds = Dataset(nc_path, mode="w", format="NETCDF3_CLASSIC")
+    ds.createDimension("longitude", n_cols)
+    ds.createDimension("latitude", n_rows)
+
+    acc_area_var = ds.createVariable("accumulation_area","f4", ("longitude", "latitude"))
+    cell_area_var = ds.createVariable("cell_area","f4", ("longitude", "latitude"))
+    chl_length_var = ds.createVariable("channel_length","f4", ("longitude", "latitude"))
+    lat_var = ds.createVariable("lat", "f4", ("longitude", "latitude"))
+    lon_var = ds.createVariable("lon", "f4", ("longitude", "latitude"))
+    slope_var = ds.createVariable("slope", "f4", ("longitude", "latitude"))
+    fldr_value_var = ds.createVariable("flow_direction_value", "i4", ("longitude", "latitude"))
+    dir_index0_var = ds.createVariable("flow_direction_index0", "i4", ("longitude", "latitude"))
+    dir_index1_var = ds.createVariable("flow_direction_index1", "i4", ("longitude", "latitude"))
+
+    acc_area_data = -np.ones((n_cols, n_rows))
+    cell_area_data = -np.ones((n_cols, n_rows))
+    chl_length_data = -np.ones((n_cols, n_rows))
+    fldr_value_data = -np.ones((n_cols, n_rows))
+    slope_data = -np.ones((n_cols, n_rows))
+
+    dir_index0_data = -np.ones((n_cols, n_rows))
+    dir_index1_data = -np.ones((n_cols, n_rows))
+
+    for the_cell in cells:
+        assert isinstance(the_cell, Cell)
+        i, j = the_cell.coords()
+        acc_area_data[i, j] = the_cell.drainage
+        cell_area_data[i,j] = the_cell.area
+        chl_length_data[i,j] = the_cell.channel_length
+        slope_data[i, j] = the_cell.chslp
+
+        if the_cell.next is None:
+            fldr_value_data[i, j] = -1
+        else:
+            dir_index0_data[i,j], dir_index1_data[i, j] = the_cell.next.coords()
+            fldr_value_data[i, j] = direction_and_value.to_value(i, j, *the_cell.next.coords())
+
+    lon_var[:,:] = polar_stereographic.lons[:,:]
+    lat_var[:,:] = polar_stereographic.lats[:,:]
+
+    acc_area_var[:,:] = acc_area_data[:,:]
+    cell_area_var[:,:] = cell_area_data[:,:]
+    chl_length_var[:,:] = chl_length_data[:,:]
+    slope_var[:,:] = slope_data[:,:]
+    fldr_value_var[:,:] = fldr_value_data[:,:]
+    dir_index0_var[:,:] = dir_index0_data[:,:]
+    dir_index1_var[:,:] = dir_index1_data[:,:]
+
+    ds.close()
+
+
+
+
+
+    pass
 
 def read_elevations(path = 'data/infocell/amno_180x172_topo.nc'):
     """
@@ -590,25 +645,10 @@ def check_cell_for_loop(cell):
         path.append(current)
 
 
-def check_for_loops():
+def check_for_loops(basins = None):
     for basin in basins:
         for cell in basin.cells:
             check_cell_for_loop(cell)
-
-def get_cell_lats_lons(path):
-    index_pairs = []
-    f = open(path)
-    #skip header
-    f.readline()
-    for line in f:
-        fields = line.split()
-        new_pair = [int( fields[1] ) , int( fields[2] ) ]
-
-        if new_pair[0] == 1 and new_pair[1] == 1:
-            continue
-        index_pairs.append(new_pair)
-    return amno_convert_list(index_pairs)
-
 
 
 def plot_basins_separately(path, cells):
@@ -662,7 +702,7 @@ def plot_basins_separately(path, cells):
 
 
 def plot_basins(sign_basins = True, save_to_file = False, 
-                draw_rivers = True, basemap = None):
+                draw_rivers = True, basemap = None, basins = None):
     """
         Plot amno basins as scatter plot,
         if sign_basins == True, then signs the basin names on top
@@ -680,11 +720,11 @@ def plot_basins(sign_basins = True, save_to_file = False,
     to_plot = np.ma.masked_all((n_cols, n_rows))
 
     for basin in basins:
-        if sign_basins:
-            i, j = basin.get_approxim_middle_indices()
-            text = '{0}'.format(basin.name)
-            plt.annotate(text, xy = (xs[i, j], ys[i, j]), size = 20,
-                            ha = 'center', va = 'center', bbox = dict(facecolor = 'white', pad = 8))
+#        if sign_basins:
+#            i, j = basin.get_approxim_middle_indices()
+#            text = '{0}'.format(basin.name)
+#            plt.annotate(text, xy = (xs[i, j], ys[i, j]), size = 10,
+#                            ha = 'center', va = 'center', bbox = dict(facecolor = 'white', pad = 8))
 
         for cell in basin.cells:
             i, j = cell.x, cell.y
@@ -735,7 +775,7 @@ def plot_basins(sign_basins = True, save_to_file = False,
     if draw_rivers:
         b.drawrivers()
 
-    plot_basin_boundaries_from_shape(b, linewidth = 2.1)
+    #plot_basin_boundaries_from_shape(b, linewidth = 0.5)
     if save_to_file:
         plt.savefig("amno_quebec_basins.pdf", bbox_inches='tight')
 
@@ -880,7 +920,7 @@ def read_next_for_outlets(path = 'data/infocell/next_for_outlets.txt'):
     pass
 
 
-def read_basins(path = 'data/infocell/amno180x172_basins.nc'):
+def read_basins(path = 'data/infocell/amno180x172_basins.nc', cells = None):
     """
     reads data from netcdf files and fills in the basins array
     """
@@ -888,9 +928,6 @@ def read_basins(path = 'data/infocell/amno180x172_basins.nc'):
     descr_map = get_basin_descriptions()
     ncfile = Dataset(path)
     id = 1
-
-
-
     for name, values in ncfile.variables.iteritems():
         data = values[:]
         if n_cols == data.shape[1]:#transpose if necessary
@@ -1298,7 +1335,7 @@ def plot_directions_from_file(path = 'data/hydrosheds/directions_qc_dx0.1.nc', b
     for i in xrange(nx):
         for j in xrange(ny):
             i1, j1 = inext_var[i, j], jnext_var[i, j]
-            if i1 >= 0 and i1 < nx and j1 >= 0 and j1 < ny:
+            if nx > i1 >= 0 <= j1 < ny:
                 u[i,j] = lons[i1,j1] - lons[i,j]
                 v[i,j] = lats[i1,j1] - lats[i,j]
 #                plt.annotate(str((i,j)), xy = (lons[i,j], lats[i,j]))
@@ -1321,7 +1358,7 @@ from matplotlib.patches import FancyArrowPatch
 def plot_north_arrow(domain_mask = None):
     the_lon = -60
     the_lat = 49
-    delta = 1
+    delta = 2
 
     basemap = polar_stereographic.basemap
     x1, y1 = basemap(the_lon, the_lat)
@@ -1336,7 +1373,7 @@ def plot_north_arrow(domain_mask = None):
     east_point = basemap( lon_right, the_lat )
 
 
-    plt.annotate("N", north_point, weight = "bold", font_properties = FontProperties(size = font_size))
+    plt.annotate("N", north_point, weight = "bold", font_properties = FontProperties(size = 15))
 #    plt.annotate("S", south_point, weight = "bold")
 #    plt.annotate("E", east_point, weight = "bold")
 #    plt.annotate("W", west_point, weight = "bold", ha = "right", va = "bottom")
@@ -1350,7 +1387,7 @@ def plot_north_arrow(domain_mask = None):
     #plt.arrow(xw, yw, xe - xw, ye - yw)
 
 
-def read_derived_from_hydrosheds():
+def read_derived_from_hydrosheds(cells_2d):
 
     """
     !!!!!!!!!!!!!!!!!!!!!
@@ -1359,7 +1396,8 @@ def read_derived_from_hydrosheds():
 
    # get_cells_from_infocell('data/infocell/HQ2_infocell.txt')
 
-    path = 'data/hydrosheds/directions_qc_amno.nc'
+    #path = 'data/hydrosheds/directions_qc_amno.nc'
+    path = "infocell9.nc"
     ncFile = Dataset(path)
   #  read_cell_area()
 
@@ -1374,7 +1412,7 @@ def read_derived_from_hydrosheds():
 
     min_slope = 1.0e-4
 
-    read_basins()
+    basins = read_basins(cells=cells_2d)
 
     for basin in basins:
         for the_cell in basin.cells:
@@ -1387,20 +1425,20 @@ def read_derived_from_hydrosheds():
             the_cell.chslp = slopes[i, j] if slopes[i, j] > 1.0e-10 else min_slope
          
             if inext >= 0:
-                the_cell.set_next(cells[inext][jnext])
+                the_cell.set_next(cells_2d[inext][jnext])
             else:
                 the_cell.set_next(None)
 
-            the_cell.channel_length = channel_length[i, j] if channel_length[i, j] > 0 else (the_cell.area) ** 0.5 * 1000.0
+            #the_cell.channel_length = channel_length[i, j] if channel_length[i, j] > 0 else (the_cell.area) ** 0.5 * 1000.0
 
 
-
-#    calculate_drainage_areas()
-#    check_for_loops()
-    plot_basins()
+    fig = plt.figure(dpi=100)
+    calculate_drainage_areas()
+    check_for_loops(basins = basins)
+    plot_basins(basins = basins)
 
     print 'plotted basins'
-    plot_directions(cells)
+    plot_directions(cells_2d)
 
     plot_north_arrow()
     print 'plotted directions'
@@ -1467,7 +1505,7 @@ def read_derived_from_hydrosheds():
 
 #    write_new_infocell()
     ncFile.close()
-    plt.savefig("amno_with_inset.png", bbox_inches = "tight")
+    plt.savefig("amno_with_inset.pdf", bbox_inches = "tight")
 
    
   
@@ -1610,11 +1648,15 @@ import time
 if __name__ == "__main__":
     plot_utils.apply_plot_params(width_pt=None, font_size=9)
     t0 = time.clock()
+    application_properties.set_current_directory()
+
+    infocell_txt_to_netcdf()
+
 #    test()
 #    main()
-    read_derived_from_hydrosheds()
+    read_derived_from_hydrosheds(cells)
     
 #    plot_directions_from_file(path = 'data/hydrosheds/directions_qc_amno.nc')
 #    plot_directions_from_file(path = 'data/hydrosheds/directions0.nc')
-    plt.show()
+    #plt.show()
     print 'Execution time %f seconds' % (time.clock() - t0)

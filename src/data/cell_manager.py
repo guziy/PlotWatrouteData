@@ -158,19 +158,19 @@ class CellManager():
 
 
     def _determine_basins(self):
-        '''
+        """
         Determine list of basins
-        '''
+        """
         
         for i in xrange(self.nx):
             for j in xrange(self.ny):
                 theCell = self.cells[i][j]
 
-                if theCell.basin != None:
+                if theCell.basin is not None:
                     continue
                 
                 #go to the exit point
-                while theCell.next != None:
+                while theCell.next is not None:
                     theCell = theCell.next
 
                 #single cell is not considered as a basin
@@ -198,7 +198,7 @@ class CellManager():
                 # @type theCell Cell
                 i, j = theCell.coords()
 
-                theValue = basin.id if theCell.next != None else -2
+                theValue = basin.id if theCell.next is not None else -2
                 basin_values[i,j] = theValue
 
         basin_values = np.ma.masked_where(basin_values == -1, basin_values)
@@ -256,7 +256,7 @@ class CellManager():
             mask = np.zeros((self.nx, self.ny))
             # @type theCell Cell
             for theCell in basin.cells:
-                if theCell.next == None:
+                if theCell.next is None:
                     mask[theCell.x, theCell.y] = -1
                 else:
                     mask[theCell.x, theCell.y] = 1
@@ -298,7 +298,7 @@ class CellManager():
                 theCell = self.cells[i][j]
                 to_remove = [] # for better performance
                 for station in new_station_list:
-                    if theCell.basin == None: continue
+                    if theCell.basin is None: continue
                     # @type theCell Cell
                     if theCell.polygon.buffer(0.0001).intersects(station.point):
                         # @type station RivDisStationMeta
@@ -350,12 +350,12 @@ def _abs_diff(a, b):
  
 
 def get_model_info_for_rivdis_stations(cm):
-    '''
+    """
     Generate basin mask and save it to the netcdf file
     1 - basin cell
     0 - not a basin cell
     -1 - outlet of the basin
-    '''
+    """
     #read in available station metadata
     rm = RivDisStationManager()
     rm.parseStationMetaData()
@@ -370,7 +370,7 @@ def test():
     cm = CellManager(path = file_path)
     cell_min = cm.test_contains()
 
-    if cell_min != None:
+    if cell_min is not None:
         i0, j0 = cell_min.coords()
         for di in xrange(-2,3):
             for dj in xrange(-2,3):

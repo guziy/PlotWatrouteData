@@ -133,10 +133,10 @@ def get_period_maxima_dates(streamflows, times,
     for i, time in enumerate(times):
         time_plus_duration = time + event_duration
         #select by date
-        if start_date != None and time < start_date:
+        if start_date is not None and time < start_date:
             continue
 
-        if end_date != None and time_plus_duration > end_date:
+        if end_date is not None and time_plus_duration > end_date:
             break
 
         #select by month

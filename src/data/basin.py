@@ -1,11 +1,12 @@
+
 __author__="huziy"
 __date__ ="$Jul 23, 2011 3:42:54 PM$"
 import numpy as np
 
 class Basin():
-    '''
+    """
     Class representing a basin
-    '''
+    """
     def __init__(self, id = -1, name = "unknown"):
         self.id = id
         self.name = name
@@ -50,31 +51,6 @@ class Basin():
                 drainage = the_cell.drainage
         result_cell.next = None
         self.exit_cells.append(result_cell)
-
-    def set_exit_cells(self, i_list = None, j_list = None):
-        '''
-        Sets exit cells for the basin using cell indices
-        '''
-        if i_list == None or j_list == None:
-            self._try_to_determine_exits()
-        else:
-            for i, j in zip(i_list,  j_list):
-                print i, j
-                assert cells[i][j] in self.cells, "outlet not in mask of the basin %s" % self.name
-
-                self.exit_cells.append(cells[i][j])
-                cells[i][j].basin = self
-
-                #if the outflow points to the cell that does not belong to any basin
-                if cells[i][j].next != None and cells[i][j].next.basin == None:
-                    cells[i][j].set_next( None )
-
-                #if the outflow points to the cell in the same basin
-                if cells[i][j].next != None and cells[i][j].next.basin == cells[i][j].basin:
-                    cells[i][j].set_next(None)
-
-
-
 
 
     def get_max_i(self):

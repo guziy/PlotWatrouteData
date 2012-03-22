@@ -11,6 +11,8 @@ current2future = dict(zip(current_ids, future_ids))
 
 h3 = timedelta(hours = 3)
 h6 = timedelta(hours = 6)
+
+day = timedelta(days = 1)
 id_to_step = {
     'aet' : h6,
     'aev' : h3,

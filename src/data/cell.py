@@ -5,9 +5,9 @@ __date__ ="$Jul 23, 2011 12:43:38 PM$"
 
 
 class Cell():
-    '''
+    """
     Class representing a grid cell
-    '''
+    """
     def __init__(self, id = None, ix = -1, jy = -1):
         self.id = id
         self.next = None
@@ -32,35 +32,38 @@ class Cell():
         self.rout = 0
         self.channel_length = -1
         self.polygon = None
+        self.next_id = -1
+        self.lon = -1
+        self.lat = -1
 
 
     def set_next(self, next_cell):
-        '''
+        """
         set the next cell for the current cell
-        '''
+        """
         if self == next_cell:
             self.next = None
             print 'endorheic'
             return
 
         #if changing the next cell
-        if self.next != None and self in self.next.previous:
-            self.next.previous.remove(self)
+        #if self.next is not None and self in self.next.previous:
+        #    self.next.previous.remove(self)
 
         self.next = next_cell
-        if next_cell != None:
+        if next_cell is not None:
             next_cell.add_previous(self)
 
         #sanity checks
-        if self.next != None:
+        if self.next is not None:
             assert self in self.next.previous
         assert self not in self.previous
 
 
     def get_upstream_cells(self):
-        '''
+        """
         returns a list of all upstream cells
-        '''
+        """
         result = []
         for prev in self.previous:
             result.extend(prev.get_upstream_cells())
@@ -89,17 +92,18 @@ class Cell():
 
         if prev not in self.previous:
             self.previous.append(prev)
-        assert(len(self.previous) <= 8)
+        if len(self.previous) > 8:
+            assert(len(self.previous) <= 8)
         
 
     def is_connected_to(self, other_cell):
-        '''
+        """
         returns True if the cell is connected to  the other cell, False otherwize
-        '''
+        """
         current = self
         i = 0
         path = []
-        while current != None:
+        while current is not None:
 
             if other_cell in path:
                 print 'Here'
@@ -115,10 +119,10 @@ class Cell():
                 return True
 
 
-            if current.basin != other_cell.basin or current.basin == None:
+            if current.basin != other_cell.basin or current.basin is None:
                 return False
 
-            if current.next != None:
+            if current.next is not None:
                 if current.basin != current.next.basin:
                     return False
 
@@ -130,25 +134,25 @@ class Cell():
 
 
     def calculate_drainage_area(self):
-        '''
+        """
         calculate drainage area for the cell
-        '''
+        """
         if self.drainage_area >= 0:
             return
 
         self.drainage_area = self.area
         for prev in self.previous:
-            if prev.basin == None:
+            if prev.basin is None:
                 continue
             prev.calculate_drainage_area()
             self.drainage_area += prev.drainage_area
 #            self.drainage_area += prev.area
 
     def calculate_number_of_upstream_cells(self):
-        '''
+        """
         returns the number of upstream cells which
         flow into the current cell
-        '''
+        """
         if self.number_of_upstream_cells >= 0:
             return self.number_of_upstream_cells
         else:
@@ -163,9 +167,9 @@ class Cell():
 
 
     def set_common_basin(self, basin):
-        '''
+        """
         set the same basin for the current and all upstream cells
-        '''
+        """
         # @type theCell Cell
         for prev in self.previous:
             prev.set_common_basin(basin)

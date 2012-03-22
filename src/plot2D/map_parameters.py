@@ -1,3 +1,6 @@
+from scipy.spatial.kdtree import KDTree
+from util.geo import lat_lon
+
 __author__="huziy"
 __date__ ="$15 nov. 2010 23:28:35$"
 
@@ -22,10 +25,24 @@ class MapParameters():
         self.dx = None
         self.dy = None
 
+        self._kdtree = None
+
         #initialize fields
         [self.xs, self.ys, self.basemap] = self.init_map()
+        assert isinstance(self.basemap, Basemap)
    
 
+
+
+    def get_kd_tree(self):
+        """
+        :rtype : KDTree
+        for interpolation purposes
+        """
+        if self._kdtree is None:
+            x, y, z = lat_lon.lon_lat_to_cartesian(self.lons.flatten(), self.lats.flatten() )
+            self._kdtree = KDTree(zip(x,y,z))
+        return self._kdtree
 
     def get_indices_of_the_closest_point_to(self, lon, lat):
         """

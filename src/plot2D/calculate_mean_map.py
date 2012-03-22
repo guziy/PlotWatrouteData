@@ -1,6 +1,4 @@
-from matplotlib.patches import Polygon
 from plot2D import bootstrap_for_mean, bootstrap_for_mean_merged
-from plot2D import ttest_for_mean_of_merged
 from shape.basin_boundaries import plot_basin_boundaries_from_shape
 
 __author__="huziy"
@@ -8,13 +6,10 @@ __date__ ="$6 oct. 2010 21:06:01$"
 
 import application_properties
 import matplotlib.pyplot as plt
-from math import sqrt
 import data.data_select as data_select
 import pylab
 import matplotlib as mpl
-from datetime import datetime
 import os
-from data import members
 import numpy as np
 from util import plot_utils
 import gevfit.matplotlib_helpers.my_colormaps as my_cm

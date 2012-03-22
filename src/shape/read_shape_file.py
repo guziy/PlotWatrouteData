@@ -16,6 +16,38 @@ from shapely.wkt import loads
 import application_properties
 application_properties.set_current_directory()
 
+
+def get_basins_as_shapely_polygons(path = "data/shape/contour_bv_MRCC/Bassins_MRCC_utm18.shp",
+                         target_proj4_str = "+proj=latlong"
+                         ):
+    """
+    return a map {basin_name : basin_polygon}
+    :rtype : dict
+    """
+    driver = ogr.GetDriverByName("ESRI Shapefile")
+    dataStore = driver.Open(path, 0)
+    assert isinstance(dataStore, ogr.DataSource)
+
+    layer = dataStore.GetLayer()
+
+    latlong = osr.SpatialReference()
+    latlong.ImportFromProj4(target_proj4_str)
+    result = {}
+
+    feature = layer.GetNextFeature()
+    while feature:
+        geom = feature.GetGeometryRef()
+        geom.TransformTo(latlong)
+        polygon = loads(geom.ExportToWkt())
+        abr = feature.GetFieldAsString('abr')
+        result[abr] = polygon
+        feature = layer.GetNextFeature()
+
+    dataStore.Destroy()
+    return result
+
+
+
 def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_MRCC_utm18.shp', linewidth = 2,
                         edgecolor = 'k'):
     driver = ogr.GetDriverByName("ESRI Shapefile")

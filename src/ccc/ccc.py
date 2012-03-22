@@ -305,7 +305,7 @@ class champ_ccc :
             compteur += 1
             champ=self._decode_champ(ibuf, lecture = 1, debug = debug)
             # extraction de la region [i1:i2,j1:j2] s'il y a lieu
-            if i1 != None and i2 != None and j1 != None and j2 != None :
+            if i1 is not None and i2 is not None and j1 is not None and j2 is not None:
                 #
                 # on extrait la region et on modifie le ibuf en consequence
                 champ = champ[i1-1:i2-1,j1-1:j2-1].copy()
