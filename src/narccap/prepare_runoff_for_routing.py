@@ -117,6 +117,10 @@ def interpolate_to_amno(data_folder, start_year = 1970, end_year = 1999, rcm = "
 
 
 def main(gcm = "", rcm = "", out_folder = ""):
+
+    pc = None
+    pf = None
+
     kwargs = {
         "start_year": 1970,
         "end_year": 1999,
@@ -145,13 +149,13 @@ def main(gcm = "", rcm = "", out_folder = ""):
         print "{0} does not exist, ignoring the period ...".format(in_folder)
 
     #do current and future climates in parallel
+    if pc is not None: pc.join()
+    if pf is not None: pf.join()
 
 
 
-    #pc.join()
-    #pf.join()
-    pass
 
+#entry
 if __name__ == "__main__":
     import application_properties
     application_properties.set_current_directory()
