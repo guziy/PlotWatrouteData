@@ -56,6 +56,9 @@ class Station:
 
 
     def delete_data_before_year(self, year):
+        if not len(self.dates):
+            return
+
         if self.dates[0].year >= year:
             return
 
@@ -64,13 +67,30 @@ class Station:
 
 
     def delete_data_after_year(self, year):
+        if not len(self.dates): return
         if self.dates[-1].year <= year:
             return
 
         for the_year in xrange(year + 1, self.dates[-1].year + 1):
             self.delete_data_for_year(the_year)
 
+    def get_num_of_years_with_continuous_data(self, data_step = timedelta(days = 1)):
+        """
+        get number of years with continuous data
+        """
+        if not len(self.dates): return 0
+        year1 = self.dates[0].year
+        year2 = self.dates[-1].year
+        result = 0
+        for the_year in xrange(year1, year2+1):
+            data = self.get_continuous_dataseries_for_year(the_year, data_step=data_step)
+            if len(data):
+                result += 1
+        return result
 
+
+
+        pass
 
     #returns a dict {date => value}
     #if the data for the year is not continuous returns an empty dict
@@ -131,14 +151,16 @@ class Station:
         assert len(self.dates) == len( self.date_to_value ), 'list_len, dict_len = {0},{1}'.format(len(self.dates), len( self.date_to_value ))
         return len(self.dates)
 
-    def parse_from_cehq(self, path):
+    def parse_from_cehq(self, path, read_only_header = False):
         f = codecs.open(path, encoding = 'iso-8859-1')
         start_reading_data = False
 
         dates = []
         values = []
 
-        self.id = re.findall(r"\d+", os.path.basename(path) )[0]
+        self.id = os.path.basename(path).split("_")[0]
+        print os.path.basename(path)
+        print self.id
         for line in f:
             line = line.strip()
             line_lower = line.lower().encode('iso-8859-1')
@@ -148,6 +170,7 @@ class Station:
 
             if 'bassin versant:' in line_lower:
                 group = re.findall(r"\d+", line)
+                self.is_natural = ("naturel" in line_lower)
                 self.drainage_km2 = float(group[0])
 
             if '(nad83)' in line_lower:
@@ -165,6 +188,9 @@ class Station:
             #read date - value pairs from file
             
             if start_reading_data:
+                if read_only_header: #no need to read dates and data if it is not required
+                    return
+
                 fields = line.split()
                 if len(fields) < 3:
                     continue
@@ -190,6 +216,7 @@ class Station:
         """
         Converts group (d,m,s) -> degrees
         """
+        print group
         d, m, s = group
         koef = 1.0 / 60.0
         sign = 1.0 if d >= 0 else -1.0
@@ -216,14 +243,14 @@ def print_info_of(station_ids):
         print s.info()
     
 
-def read_station_data(folder = 'data/cehq_measure_data'):
+def read_station_data(folder = 'data/cehq_measure_data', read_only_headers = False):
     stations = []
     for file in os.listdir(folder):
         if not '.txt' in file:
             continue
         path = os.path.join(folder, file)
         s = Station()
-        s.parse_from_cehq(path)
+        s.parse_from_cehq(path, read_only_header=read_only_headers)
         stations.append(s)
     return stations
 
@@ -232,17 +259,22 @@ def read_station_data(folder = 'data/cehq_measure_data'):
 if __name__ == "__main__":
     application_properties.set_current_directory()
 
-    station_ids = [104001, 103715, 93801, 93806, 81006, 92715, 61502, 80718, 42607, 40830]
-    print_info_of(station_ids)
+    #station_ids = [104001, 103715, 93801, 93806, 81006, 92715, 61502, 80718, 42607, 40830]
+    #print_info_of(station_ids)
 
 
 
     s = Station()
-    s.parse_from_cehq('data/cehq_measure_data/051004_Q.txt')
-    data = s.get_continuous_dataseries_for_year(1970)
+    s.parse_from_cehq('data/cehq_measure_data/061502_Q.txt')
+    data = s.get_continuous_dataseries_for_year(1995)
 #    for date in sorted(data.keys()):
 #        print date, '-->', data[date]
 
-    print np.max(s.values)
-    print np.max(s.dates)
+    print np.max(data.values())
+
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(s.dates, s.values, lw = 3)
+    plt.show()
+
     print "Hello World"

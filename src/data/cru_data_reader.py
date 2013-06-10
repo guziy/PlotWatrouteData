@@ -1,3 +1,5 @@
+from data import data_select
+from util import plot_utils
 
 __author__ = 'huziy'
 
@@ -14,11 +16,12 @@ import pandas
 
 class CruReader():
     def __init__(self, path ="data/cru_data/CRUTS3.1/cru_ts_3_10.1901.2009.pre.dat.nc",
-                 var_name = "pre", create_tree_for_interpolation = True):
+                 var_name = "pre", create_tree_for_interpolation = True, transpose_xy_dimensions = True):
         """
         Class for reading cru data
         """
         self.path = path
+        self.transpose_xy_dimensions = transpose_xy_dimensions
         self.ds = nc.Dataset(path)
         self._read_times()
         self._read_coords()
@@ -34,10 +37,10 @@ class CruReader():
 
     def _read_times(self):
         t_days = self.ds.variables["time"]
-        ref_date = datetime.strptime(t_days.units.split()[2], "%Y-%m-%d")
-        self.times = map(lambda dt : ref_date + timedelta(days = dt), t_days[:])
+        #ref_date = datetime.strptime(t_days.units.split()[2], "%Y-%m-%d")
+        self.times = nc.num2date(t_days[:], t_days.units)
+        #map(lambda dt : ref_date + timedelta(days = dt), t_days[:])
         print "cru, number of datetime objects: ",len(self.times)
-        print( ref_date )
 
 
     def get_monthly_normals(self, start_date = None, end_date = None):
@@ -137,8 +140,6 @@ class CruReader():
             print i, j
 
             result.append(self.data[:, i[0][0], j[0][0]])
-            d = self.data[:, i[0][0], j[0][0]] - self.missing_data
-            assert not np.any(d == 0)
 
         result = np.array(result)
         print result.shape
@@ -156,34 +157,59 @@ class CruReader():
         """
         read longitudes and latitudes from file
         """
-        self.lons = self.ds.variables["lon"][:]
-        self.lats = self.ds.variables["lat"][:]
-        self.lats_2d, self.lons_2d = np.meshgrid(self.lats, self.lons)
+        lon_name = "lon"
+        lat_name = "lat"
+        var_names = self.ds.variables.keys()
+        if lon_name not in var_names:
+            lon_name = "longitude"
+
+        if lat_name not in var_names:
+            lat_name = "latitude"
+
+        self.lons = self.ds.variables[lon_name][:]
+        self.lats = self.ds.variables[lat_name][:]
+        if len(self.lons.shape) == 1:
+            self.lats_2d, self.lons_2d = np.meshgrid(self.lats, self.lons)
+        else:
+            self.lats_2d, self.lons_2d = self.lats, self.lons
 
     def _read_data(self, var_name = "pre"):
         """
         gets data from the file
+        :type var_name : str
 
         """
+        #try all uppercase just in case
+        if not self.ds.variables.has_key(var_name):
+            var_name = var_name.upper()
         precip = self.ds.variables[var_name]
         self.data = precip[:]
         #I prefer longitude x-axis
-        self.data = np.transpose( self.data, axes = (0, 2, 1))
-        self.missing_data = precip.missing_value
+        if self.transpose_xy_dimensions:
+            self.data = np.transpose( self.data, axes = (0, 2, 1))
+
+        if hasattr(precip, "missing_value"):
+            self.missing_data = precip.missing_value
 
     def print_file_info(self):
         if hasattr(self, "times"):
             print "start date: ", self.times[0]
             print "end date: ", self.times[-1]
-        dlon = self.lons[1] - self.lons[0]
-        dlat = self.lats[1] - self.lats[0]
-        print "dlon, dlat = {0},{1}".format( dlon, dlat )
+        if len(self.lons.shape) == 1:
+            dlon = self.lons[1] - self.lons[0]
+            dlat = self.lats[1] - self.lats[0]
+            print "dlon, dlat = {0},{1}".format( dlon, dlat )
 
 
 
 
     def _set_kd_tree(self):
-        lats_2d, lons_2d = np.meshgrid(self.lats, self.lons)
+
+        if len(self.lons.shape) == 1:
+            lats_2d, lons_2d = np.meshgrid(self.lats, self.lons)
+        else:
+            lats_2d, lons_2d = self.lats, self.lons
+
         x, y, z = lat_lon.lon_lat_to_cartesian(lons_2d.flatten(), lats_2d.flatten())
         print lons_2d.shape, lats_2d.shape
         print lons_2d[0,0], lons_2d[-1, 0]
@@ -235,9 +261,35 @@ class CruReader():
         pass
 
 
+def _get_routing_indices():
+    """
+    Used for the plot domain centering
+    """
+    i_indices, j_indices = data_select.get_indices_from_file(path = "data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc")
+    return i_indices, j_indices
+
+
 def test():
-    cr = CruReader()
+    cr = CruReader(path= "data/swe_ross_brown/swe.nc", transpose_xy_dimensions=False, var_name="SWE")
+
     cr.print_file_info()
+    import matplotlib.pyplot as plt
+    from plot2D.map_parameters import polar_stereographic
+
+    djf =  cr.get_seasonal_mean_field(months=[1,2,12], start_date=datetime(1980,1,1), end_date=datetime(1997,12,31))
+    djf = cr.interpolate_data_to(djf, polar_stereographic.lons, polar_stereographic.lats, nneighbors=1)
+    x, y = polar_stereographic.xs, polar_stereographic.ys
+    i_array, j_array = _get_routing_indices()
+    x_min, x_max, y_min, y_max = plot_utils.get_ranges(x[i_array, j_array], y[i_array, j_array])
+
+    save = djf[i_array, j_array]
+    djf = np.ma.masked_all(djf.shape)
+    djf[i_array, j_array] = save
+    plt.pcolormesh(x, y, djf)
+    plt.colorbar()
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    plt.show()
  #   cr.interpolate_to()
 
 if __name__ == '__main__':

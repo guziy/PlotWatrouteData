@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
 
     gcm_list = ["ccsm",  "ccsm",  "cgcm3",  "cgcm3",  "cgcm3",  "gfdl",  "gfdl",  "gfdl",  "hadcm3"]
-    rcm_list = ["crcm",  "wrfg",  "crcm",  "rcm3",  "wrfg",  "ecp2",  "hrm3",  "rcm3",  "hrm3"]
+    rcm_list = ["crcm",  "wrfg",  "crcm",   "rcm3",   "wrfg",  "ecp2",  "hrm3",     "rcm3",  "hrm3"]
 
     for gcm, rcm in zip(gcm_list, rcm_list):
         main(gcm = gcm, rcm = rcm, out_folder = "/home/huziy/skynet1_rech3/narccap_prepared_runoff_for_routing")

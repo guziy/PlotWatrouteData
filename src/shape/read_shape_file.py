@@ -48,8 +48,12 @@ def get_basins_as_shapely_polygons(path = "data/shape/contour_bv_MRCC/Bassins_MR
 
 
 
+
+
+
+
 def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_MRCC_utm18.shp', linewidth = 2,
-                        edgecolor = 'k'):
+                        edgecolor = 'k', face_color = "none", id_list = None, zorder = 0, alpha = 1):
     driver = ogr.GetDriverByName("ESRI Shapefile")
     dataStore = driver.Open(path, 0)
     layer = dataStore.GetLayer(0)
@@ -57,7 +61,9 @@ def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_
     latlong.ImportFromProj4("+proj=latlong")
     result = []
 
-
+    id_list_lower = []
+    if id_list is not None:
+        id_list_lower = map(lambda x: x.lower(), id_list)
 
     feature = layer.GetNextFeature()
     while feature:
@@ -74,6 +80,7 @@ def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_
         polygon = loads(geom.ExportToWkt())
         boundary = polygon.exterior
         coords = np.zeros(( len(boundary.coords), 2))
+        currentId = None
         for i, the_coord in enumerate(boundary.coords):
 
 
@@ -82,7 +89,17 @@ def get_features_from_shape(basemap, path = 'data/shape/contour_bv_MRCC/Bassins_
             if basemap is not None:
                 coords[i, 0], coords[i, 1] = basemap( the_coord[0], the_coord[1] )
 
-        result.append(Polygon(coords, facecolor = 'none', linewidth = linewidth, edgecolor = edgecolor))
+            currentId = feature.GetFieldAsString("abr").lower()
+
+        to_add = True
+        if id_list is not None:
+            to_add = currentId in id_list_lower
+
+        if to_add:
+            p = Polygon(coords,linewidth = linewidth, edgecolor = edgecolor,
+                facecolor=face_color, zorder = zorder, alpha = alpha)
+            p.basin_id = currentId
+            result.append(p)
         feature = layer.GetNextFeature()
 
 

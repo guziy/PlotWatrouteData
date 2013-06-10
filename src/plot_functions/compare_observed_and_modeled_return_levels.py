@@ -27,7 +27,9 @@ import application_properties
 
 
 selected_station_ids = [
-    "104001", "103715", "093806", "093801", "092715", "081006", "061502", "080718", "040830"
+    "104001", "103715", "093806", "093801", "092715", "081006", "061502",
+    #"080718",
+    "040830"
 ]
 
 
@@ -180,7 +182,7 @@ def plot_scatter(x_dict, y_dict, xlabel = 'x', ylabel = 'y', title = '',
     plt.title(title)
 
 
-#    plt.plot(z, z, color = 'k')
+    plt.plot(z, z, color = 'k')
     plt.xlim(z)
     plt.ylim(z)
 
@@ -251,9 +253,9 @@ def plot_boxplot(data, title = "", file_name = "", labels = None, point_ids = No
 
 
 def main():
-    #path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
+    path = 'data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc'
 
-    path = "data/streamflows/hydrosheds_rk4_changed_partiotioning/aex_discharge_1970_01_01_00_00.nc"
+    #path = "data/streamflows/hydrosheds_rk4_changed_partiotioning/aex_discharge_1970_01_01_00_00.nc"
     #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na.nc'
     data = pe_calc.get_station_and_corresponding_model_data(path = path)
     delete_not_continuous(data)

@@ -1,5 +1,6 @@
+import itertools
 from matplotlib.font_manager import FontProperties
-from data import direction_and_value
+from data import direction_and_value, cehq_station
 
 __author__="huziy"
 __date__ ="$23 mai 2010 13:59:05$"
@@ -622,7 +623,7 @@ def plot_directions(cells, basemap = None, domain_mask = None):
         v = np.ma.masked_where(~(domain_mask == 1), v)
     x = np.ma.mean( np.ma.sqrt(np.ma.power(u, 2) + np.ma.power(v, 2)))
     print "arrow width = ", 0.1 * x
-    the_basemap.quiver(xs, ys, u, v, pivot = 'middle', scale = 1.2, width =  0.08 * x, units='xy', color = "k")
+    the_basemap.quiver(xs, ys, u, v, pivot = 'middle', scale = 1.2, width =  0.08 * x, units='xy', color = "0.5")
     
  #   m.drawcoastlines(linewidth=0.5)
  #   draw_meridians_and_parallels(m, 20)
@@ -709,6 +710,28 @@ def plot_basins(sign_basins = True, save_to_file = False,
 
     """
 
+    basin_name_to_index = {"ARN":1,
+    "FEU":2,
+    "MEL":3,
+    "CAN":4,
+    "PYR":5,
+    "GRB":6,
+    "BAL":7,
+    "GEO":8,
+    "CHU":9,
+    "LGR":10,
+    "NAT":11,
+    "ROM":12,
+    "MOI":13,
+    "MAN":14,
+    "RUP":15,
+    "BEL":16,
+    "STM":17,
+    "RDO":18,
+    "SAG":19,
+    "BOM":20,
+    "WAS":21
+    }
     bas_names = []
     for basin in basins:
         print basin.name, len(basin.cells)
@@ -719,12 +742,29 @@ def plot_basins(sign_basins = True, save_to_file = False,
     #to_plot = np.zeros((n_cols, n_rows))
     to_plot = np.ma.masked_all((n_cols, n_rows))
 
-    for basin in basins:
-#        if sign_basins:
-#            i, j = basin.get_approxim_middle_indices()
-#            text = '{0}'.format(basin.name)
-#            plt.annotate(text, xy = (xs[i, j], ys[i, j]), size = 10,
-#                            ha = 'center', va = 'center', bbox = dict(facecolor = 'white', pad = 8))
+
+
+    for i, basin in enumerate(basins):
+        if sign_basins:
+            i, j = basin.get_approxim_middle_indices()
+            #text = '{0}({1})'.format(basin.name, basin_name_to_index[basin.name])
+            text = '{0}'.format(basin.name)
+
+            if basin.name.lower() == "feu":
+                xy = (xs[i, j], 0.995*ys[i, j])
+            elif basin.name.lower() in [ "was", "bel" ]:
+                xy = (xs[i, j], 1.005*ys[i, j])
+            elif basin.name.lower() == "rdo":
+                xy = (xs[i, j] * 1.005 , 1.01*ys[i, j])
+            elif basin.name.lower() == "grb":
+                xy = (xs[i, j] * 0.995 , 0.995*ys[i, j])
+            elif basin.name.lower() == "moi":
+                xy = (xs[i, j] * 1.005 , ys[i, j])
+            else:
+                xy = (xs[i, j], ys[i, j])
+
+            plt.annotate(text, xy = xy, size = 10,
+                            ha = 'center', va = 'center', bbox = dict(facecolor = 'white', pad = 6))
 
         for cell in basin.cells:
             i, j = cell.x, cell.y
@@ -764,8 +804,8 @@ def plot_basins(sign_basins = True, save_to_file = False,
  #   b.scatter(x, y, c = to_plot, marker = 's', s = 200)
 
  # uncomment to fill basins with colors
-    b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
-                  cmap = color_map, alpha = 0.4)
+ #   b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
+ #                 cmap = color_map, alpha = 0.4)
 
                   
 #    b.pcolormesh(x1, y1, to_plot, #marker='s', s=200,
@@ -775,7 +815,15 @@ def plot_basins(sign_basins = True, save_to_file = False,
     if draw_rivers:
         b.drawrivers()
 
-    #plot_basin_boundaries_from_shape(b, linewidth = 0.5)
+    plot_basin_boundaries_from_shape(b, linewidth = 2, edgecolor="b", zorder=None)
+
+    green_border_ids = [
+        "rdo", "bel", "stm", "was", "sag", "rup", "moi", "rom", "nat", "pyr", "grb", "feu"
+    ]
+
+    #plot_basin_boundaries_from_shape(b, linewidth = 2, edgecolor="b", id_list=green_border_ids,
+    #    face_color="#ADD8E6", zorder=0, alpha=1
+    #)
     if save_to_file:
         plt.savefig("amno_quebec_basins.pdf", bbox_inches='tight')
 
@@ -1358,7 +1406,7 @@ from matplotlib.patches import FancyArrowPatch
 def plot_north_arrow(domain_mask = None):
     the_lon = -60
     the_lat = 49
-    delta = 2
+    delta = 1
 
     basemap = polar_stereographic.basemap
     x1, y1 = basemap(the_lon, the_lat)
@@ -1396,8 +1444,8 @@ def read_derived_from_hydrosheds(cells_2d):
 
    # get_cells_from_infocell('data/infocell/HQ2_infocell.txt')
 
-    #path = 'data/hydrosheds/directions_qc_amno.nc'
-    path = "infocell9.nc"
+    path = 'data/hydrosheds/directions_qc_amno.nc'
+    #path = "infocell9.nc"
     ncFile = Dataset(path)
   #  read_cell_area()
 
@@ -1432,13 +1480,15 @@ def read_derived_from_hydrosheds(cells_2d):
             #the_cell.channel_length = channel_length[i, j] if channel_length[i, j] > 0 else (the_cell.area) ** 0.5 * 1000.0
 
 
-    fig = plt.figure(dpi=100)
+    fig = plt.figure(dpi=400)
     calculate_drainage_areas()
     check_for_loops(basins = basins)
-    plot_basins(basins = basins)
+    plot_basins(basins = basins, sign_basins=True, draw_rivers=True)
 
     print 'plotted basins'
     plot_directions(cells_2d)
+    plot_station_positions(m)
+
 
     plot_north_arrow()
     print 'plotted directions'
@@ -1446,19 +1496,9 @@ def read_derived_from_hydrosheds(cells_2d):
 
     domain_mask = get_domain_mask()
 
-    x_start = np.ma.min(xs[domain_mask == 1])
-    x_end = np.ma.max(xs[domain_mask == 1]) 
+    x_start, x_end, y_start, y_end = plot_utils.get_ranges(xs[domain_mask == 1], ys[domain_mask == 1])
 
-    y_start = np.ma.min(ys[domain_mask == 1]) 
-    y_end = np.ma.max(ys[domain_mask == 1])
-
-    marginx = abs(x_start) * 1.0e-1
-    marginy = abs(y_start) * 1.0e-1
-    x_start -= marginx * 0.2
-    x_end += marginx
-    y_start -= marginy
-    y_end += marginy
-
+    x_end += 0.3 * (x_end - x_start) #add space for the inset
 
     plt.xlim(x_start, x_end)
     plt.ylim(y_start, y_end)
@@ -1491,13 +1531,13 @@ def read_derived_from_hydrosheds(cells_2d):
     theBasemap.pcolormesh(x, y, domain_mask , vmax = 1, vmin = 0)
     theBasemap.drawcoastlines()
 
-#    axins.annotate('AMNO', (x1 + abs(x1) * 1.0e-1, y1 + abs(y1) * 1.0e-1),
-#                    bbox = dict(facecolor = 'white', pad = 4))
+    #axins.annotate('AMNO', (x1 + abs(x1) * 1.0e-1, y1 + abs(y1) * 1.0e-1),
+    #                bbox = dict(facecolor = 'white', pad = 4))
 
-    #plot_basins(sign_basins = False, draw_rivers = False, basemap = theBasemap)
+    #plot_basins(sign_basins = True, draw_rivers = True, basemap = theBasemap)
     #center zoom on amno
-    plt.xlim(x1  , x2)
-    plt.ylim(y1  , y2)
+    axins.set_xlim(x1  , x2)
+    axins.set_ylim(y1  , y2)
 
     
 #    read_clay()
@@ -1505,13 +1545,87 @@ def read_derived_from_hydrosheds(cells_2d):
 
 #    write_new_infocell()
     ncFile.close()
-    plt.savefig("amno_with_inset.pdf", bbox_inches = "tight")
-
+    plt.savefig("amno_with_inset.jpeg", bbox_inches = "tight")
+    #plt.show()
    
   
 
 
     pass
+
+
+def plot_station_positions(basemap):
+    sel_ids = [
+        "080707",
+        "080717",
+        "093801",
+        "093806",
+        "093808",
+        "102701",
+        "102704",
+        "072301",
+        "072302",
+        "074902",
+        "074903",
+        "103702",
+        "103703",
+        "103715",
+        "041902",
+        "041903",
+        "042103",
+        "042607",
+        "043012",
+        "040212",
+        "040814",
+        "040830",
+        "073801",
+        "073802",
+        "081002",
+        "081006",
+        "081007",
+        "081008",
+        "061502",
+        "061801",
+        "061901",
+        "061905",
+        "061906",
+        "062102",
+        "050119",
+        "050135",
+        "080704",
+        "080718"
+    ]
+
+    stations = cehq_station.read_station_data(folder="data/cehq_measure_data_all", read_only_headers=True)
+    stations = itertools.ifilter(lambda s: s.id in sel_ids, stations)
+    stations = list(stations)
+    assert  len(stations) == len(sel_ids), "{0} != {1}".format(len(stations), len(sel_ids))
+
+    xsta = []
+    ysta = []
+    for s in stations:
+        xsta.append(s.longitude)
+        ysta.append(s.latitude)
+    xsta, ysta = basemap(xsta, ysta)
+    basemap.scatter(xsta, ysta, c = "r", s = 80 , zorder = 10)
+
+
+    #color stations with yellow
+    yellow_ids = [ "103702", "093808", "061502", "041903", "093806", "042607",
+                   "081002", "073801", "080718", "081006", "093801", "103715", "050119", "040830"]
+
+
+
+    xsta = []
+    ysta = []
+    for s in stations:
+        if s.id not in yellow_ids: continue
+        xsta.append(s.longitude)
+        ysta.append(s.latitude)
+    xsta, ysta = basemap(xsta, ysta)
+    #basemap.scatter(xsta, ysta, c = "#DCBD34", s = 80 , zorder = 10)
+    basemap.scatter(xsta, ysta, c = "#40dae6", s = 80 , zorder = 10)
+
 
 
 def read_flowdirections_correct_and_save():
@@ -1619,9 +1733,11 @@ def plot_basin_boundaries():
 
 
 from shape.read_shape_file import *
-def plot_basin_boundaries_from_shape(basemap, linewidth = 2, edgecolor = 'k'):
+def plot_basin_boundaries_from_shape(basemap, linewidth = 2, edgecolor = 'k',
+                                     face_color = "none", zorder = 0, id_list = None, alpha = 1):
     ax = plt.gca()
-    for poly in get_features_from_shape(basemap, linewidth = linewidth, edgecolor = edgecolor):
+    for poly in get_features_from_shape(basemap, linewidth = linewidth,
+            edgecolor = edgecolor, face_color = face_color, id_list=id_list, zorder=zorder, alpha=alpha):
         ax.add_patch(poly)
     pass
 
@@ -1646,11 +1762,11 @@ def main():
 
 import time
 if __name__ == "__main__":
-    plot_utils.apply_plot_params(width_pt=None, font_size=9)
+    plot_utils.apply_plot_params(width_pt=None, width_cm=36, font_size=8)
     t0 = time.clock()
     application_properties.set_current_directory()
 
-    infocell_txt_to_netcdf()
+    #infocell_txt_to_netcdf()
 
 #    test()
 #    main()

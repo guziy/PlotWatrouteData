@@ -4,7 +4,7 @@ __date__ ="$Apr 1, 2011 11:54:33 AM$"
 
 
 
-from mpl_toolkits.basemap import NetCDFFile, Basemap
+from mpl_toolkits.basemap import Basemap
 
 import numpy as np
 
@@ -83,7 +83,7 @@ def plot_drainage_areas(path = "data/hydrosheds/test_using_splitting_amno.nc"):
 
 def plot_source_flow_accumulation(sub = -1, vmin = 0, vmax = 10):
     path = 'data/hydrosheds/corresponding_DA.nc'
-    ds = NetCDFFile(path)
+    ds = Dataset(path)
     data = ds.variables['DA_source'][:,:]
 
     lons = ds.variables['longitude'][:,:]
@@ -110,7 +110,7 @@ def plot_source_flow_accumulation(sub = -1, vmin = 0, vmax = 10):
 
 def plot_target_flow_accumulations(sub = -1, vmin = 0, vmax = 10):
     path = 'data/hydrosheds/corresponding_DA.nc'
-    ds = NetCDFFile(path)
+    ds = Dataset(path)
     data = ds.variables['DA_target'][:,:]
 
     lons = ds.variables['longitude'][:,:]
@@ -135,24 +135,32 @@ def plot_target_flow_accumulations(sub = -1, vmin = 0, vmax = 10):
     return ax
     pass
 
-def plot_scatter(path = 'data/hydrosheds/corresponding_DA.nc'):
-    nc_da = NetCDFFile(path)
-    v1 = nc_da.variables['DA_source'][:,:]
-    v2 = nc_da.variables['DA_target'][:,:]
+def plot_scatter(path = 'data/hydrosheds/corresponding_DA.nc', margin = 20):
+    nc_da = Dataset(path)
+    #margin = 30
+    v1 = nc_da.variables['DA_source'][margin:-margin,margin:-margin]
+    v2 = nc_da.variables['DA_target'][margin:-margin,margin:-margin]
 
-    basin_path = 'data/infocell/amno180x172_basins.nc'
+    #basin_path = 'data/infocell/amno180x172_basins.nc'
 
-    nc = NetCDFFile(basin_path)
-    mask = None
-    for k, v in nc.variables.iteritems():
-        if mask is None:
-            mask = v.data[:,:].copy()
-        else:
-            mask += v.data
+    #nc = NetCDFFile(basin_path)
+    #mask = None
+    #for k, v in nc.variables.iteritems():
+    #    if mask is None:
+    #        mask = v.data[:,:].copy()
+    #    else:
+    #        mask += v.data
 
-    condition = (v1 > 0) & (v2 > 0) & ((v1 / v2) < 3) & (mask == 1)
+    condition = (v1 > 0) & (v2 > 0)
     v1 = v1[condition]
     v2 = v2[condition]
+
+    v11 = v1[v1/v2 < 3]
+    v22 = v2[v1/v2 < 3]
+    v1 = v11
+    v2 = v22
+
+
 
     print len(v1), v1.shape
     print len(v2), v2.shape
@@ -160,6 +168,7 @@ def plot_scatter(path = 'data/hydrosheds/corresponding_DA.nc'):
     plt.figure()
     plt.grid(True)
     plt.scatter(np.log10(v1), np.log10(v2), linewidth = 0, s = 10)
+
     plt.xlabel('hydrosheds, $\\log_{10}(DA_{max})$ ')
     plt.ylabel('upscaled, $\\log_{10}(DA_{sim})$')
 
@@ -172,42 +181,9 @@ def plot_scatter(path = 'data/hydrosheds/corresponding_DA.nc'):
     plt.plot([min_x , x[1]], [min_x, x[1]], color = 'k')
 
     me = 1 - np.sum( np.power(v1 - v2, 2) ) / np.sum(np.power( v1 - np.mean(v1), 2 ))
-    plt.title('ME = {0}'.format(me))
+    plt.title('ME = {0:.4f}'.format(me))
     plt.savefig('da_scatter.png')
-
-
-    #######Compare areas from CRCM4 and Upscale
-    plt.figure()
-    plt.title('compare areas computed by CRCM4 and Upscale module')
-
-    v2 = nc_da.variables['DA_target'][:,:]
-    basins = infocell.get_basins_with_cells_connected_using_hydrosheds_data()
-
-    crcm4 = []
-    upscaler = []
-
-    for basin in basins:
-        for the_cell in basin.cells:
-            # @type the_cell Cell
-            crcm4.append(the_cell.drainage_area)
-            upscaler.append(v2[the_cell.x, the_cell.y])
-
-            if v2[the_cell.x, the_cell.y] > 5 * the_cell.drainage_area:
-                print v2[the_cell.x, the_cell.y], the_cell.drainage_area
-                print lons[the_cell.x, the_cell.y], lats[the_cell.x, the_cell.y]
-                print the_cell.x, the_cell.y
-                print 20 * '='
-
-    plt.scatter(crcm4, upscaler)
-    plt.xlabel('CRCM4')
-    plt.ylabel('Upscaler')
-
-    x = plt.xlim()
-    plt.xlim(min_x , x[1])
-    plt.ylim(min_x, x[1])
-    plt.plot([min_x , x[1]], [min_x, x[1]], color = 'k')
-
-    plt.savefig('CRCM4vsUpscale.png')
+    return me
 
 
 
@@ -228,12 +204,41 @@ def compare_drainages_2d():
 
 def main():
 #    compare_drainages_2d()
-    plot_scatter()
+    #plot_scatter(path="/home/huziy/skynet3_exec1/hydrosheds/corresponding_DA_af_0.44deg.nc")
+    #plot_scatter(path="/home/huziy/skynet3_exec1/hydrosheds/corresponding_DA_af_0.44deg_2.nc")
+    #plot_scatter(path="/home/huziy/skynet3_exec1/hydrosheds/corresponding_DA_qc_260x260_0.1deg_2.nc")
+    #plot_scatter(path="/home/huziy/skynet3_exec1/hydrosheds/corresponding_DA_qc_0.5deg.nc")
+    #plot_scatter(path="/home/huziy/skynet3_rech1/Netbeans Projects/Java/DDM/corresponding_DA_0.5deg_86x86.nc")
+    
+    plot_scatter(path="/home/huziy/skynet3_rech1/Netbeans Projects/Java/DDM/corresponding_DA_0.1deg_260x260.v3.nc", margin=1)
+    #plot_scatter(path="/home/huziy/skynet3_exec1/hydrosheds/corresponding_DA_qc_260x260_0.1deg_2.nc")
     plt.show()
     pass
 
+
+def plot_me_from_margin():
+    margins = list(range(20, 100, 5))
+    mes = []
+    for margin in margins:
+        me = plot_scatter(path="/home/huziy/skynet3_rech1/Netbeans Projects/Java/DDM/corresponding_DA_0.1deg_260x260.v3.nc", margin=margin)
+        mes.append(me)
+
+    plt.figure()
+    plt.plot(margins, mes)
+    plt.xlabel("Domain margin in grid points")
+    plt.ylabel("Modelling efficiency")
+    plt.title("High resolution grid")
+    plt.savefig("me_from_margin.png")
+   # plt.show()
+
+
+
+    pass
+
+
 if __name__ == "__main__":
     application_properties.set_current_directory()
-    #main()
-    plot_drainage_areas()
+    main()
+    #plot_drainage_areas()
+    #plot_me_from_margin()
     print "Hello World"

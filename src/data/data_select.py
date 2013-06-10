@@ -25,7 +25,7 @@ def get_field_from_file(path = '', field_name = 'water_discharge'):
     else:
         the_field = None
 
-    ds.close()
+    #ds.close()
     return the_field
 
 
@@ -53,7 +53,6 @@ def get_data_from_file(path, field_name = 'water_discharge'):
 
 
     date_times = map(lambda x: datetime.strptime( x , date_format ), times)
-    ds.close()
 
 
 
@@ -66,7 +65,6 @@ def get_indices_from_file(path = 'data/streamflows/hydrosheds_euler9/aex_dischar
     vars = fpin.variables
 
     x, y = vars['x-index'][:], vars['y-index'][:]
-    fpin.close()
     return x, y
 
 
@@ -493,22 +491,14 @@ def get_means_over_months_for_each_year(times, streamflow, months = range(1,13))
 
 
 
+def get_means_for_stamp_dates(stamp_dates, all_dates = None, all_data = None):
+    result = []
+    for the_stamp in stamp_dates:
+        bool_vector = np.array(map(lambda d: d.day == the_stamp.day and d.month == the_stamp.month, all_dates))
+        result.append(np.mean(all_data[bool_vector]))
+    return np.array(result)
 
 
-
-def get_mean_for_day_of_year(stamp_dates, values):
-    """
-    Returns daily normals (mean for each day of year)
-    """
-    surfDict = {}
-    for stamp_date, value in zip(stamp_dates, values):
-        if surfDict.has_key(stamp_date):
-            surfDict[stamp_date].append(value)
-        else:
-            surfDict[stamp_date] = [value]
-
-    sortedDates = sorted(surfDict.keys())
-    return sortedDates, [np.mean(surfDict[d]) for d in sortedDates]
 
 
 

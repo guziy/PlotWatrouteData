@@ -1,3 +1,6 @@
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.font_manager import FontProperties
 from shape.basin_boundaries import plot_basin_boundaries_from_shape
 
 __author__="huziy"
@@ -32,7 +35,7 @@ from index_object import IndexObject
 import netCDF4 as nc
 
 from data.cell import Cell
-from data import members
+from data import members, direction_and_value
 
 import diagnose_ccc.compare_precip as compare_precip
 
@@ -71,7 +74,7 @@ def objective_function(distance, da1, da2):
     objective function that should be minimal
     at the station corresponding to the given cell
     """
-    alpha = 1
+    alpha = 1.0
     return distance / MAXIMUM_DISTANCE_METERS + np.abs(da2 - da1) / da1 * alpha
 
 
@@ -179,31 +182,12 @@ def calculate_skills(selected_stations=None, dates=None, selected_station_values
     if not selected_station_values: selected_station_values = []
     if not grid_lats: grid_lats = []
     if not grid_lons: grid_lons = []
-    if not dates: dates = []
     if not selected_stations: selected_stations = []
     for i in range(len(selected_stations)):
-         model_values = selected_model_values[i]
          station = selected_stations[i]
-         station_values = selected_station_values[i]
-         the_dates = dates if len(dates) <= len(dates) else dates
 
-         model_values_list = []
-         station_values_list = []
-         for index, the_date in enumerate(the_dates):
-            if the_dates == dates:
-                station_values_list.append(station_values[index])
-                index_model = dates.index(the_date)
-                model_values_list.append(model_values[index_model])
-            else:
-                index_station = dates.index(the_date)
-                station_values_list.append(station_values[index_station])
-                model_values_list.append(model_values[index])
-            
-
-
-
-         model_values = np.array(model_values_list)
-         station_values = np.array(station_values_list)
+         model_values = np.array(selected_model_values[i])
+         station_values = np.array(selected_station_values[i])
 
          grid_drainage  = grid_drainages[i]
          grid_lon = grid_lons[i]
@@ -219,18 +203,19 @@ def calculate_skills(selected_stations=None, dates=None, selected_station_values
          S = 2 * std1 * std2 / (std1 ** 2 + std2 ** 2) * R[0,1]
 
 
-#         print 'Station:'
-#         print 'Id,Lon, Lat, DA: %s, %f, %f, %f' % ( station.id, station.longitude, station.latitude, station.drainage_km2 )
+         #Calculate Nash-Sutcliff coefficient
+         ns = 1.0 - np.sum((model_values - station_values) ** 2) / np.sum((station_values - np.mean(station_values)) ** 2)
+         print("Nash-Sutcl. = {0}".format(ns))
+
+
+
+         print 'Station:'
+         print 'Id,Lon, Lat, DA: %s, %f, %f, %f' % ( station.id, station.longitude, station.latitude, station.drainage_km2 )
 #         print 'Grid point'
 #         print 'Lon, Lat, DA, Skill, dDA/DA : %f, %f, %f, %f, %f' % (grid_lon, grid_lat, grid_drainage,
 #                                    S, (grid_drainage - station.drainage_km2) / station.drainage_km2 )
 
-         print '%s & %.2f & %.2f & %.2f ' % ( station.id, station.longitude, station.latitude, station.drainage_km2 )
-         print '& %.2f &  %.2f & %.2f & %.2f & %.2f \\\\' % (grid_lon, grid_lat, grid_drainage,
-                                    S, (grid_drainage - station.drainage_km2) / station.drainage_km2 * 100 )
-         print '\\hline'
- #        print '=============='
-
+         print( 20 * "-" )
 
 ##returns a dictionary {station: modelpoint}
 def get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc'):
@@ -407,15 +392,36 @@ def plot_precip_for_upstream(i_index, j_index, station_id):
     pass
 
 selected_station_ids = [
-    "104001", "103715", "093806", "093801", "092715", "081006", "061502", "080718", "040830"
+    "104001", "103715", "093806", "093801", "092715", "081006", "061502", #"080718",
+    "040830"
 ]
+
+
+def _get_monthly_means(dates, values):
+    res = np.zeros((12,))
+    for m in xrange(1,13):
+        bool_vector = np.array(map(lambda x: x.month == m, dates))
+        res[m - 1] = np.mean(values[bool_vector])
+    return res
+
+
+def get_unrouted_streamflow_for(selected_dates = None, all_dates = None , tot_runoff = None, cell_indices = None):
+
+    """
+    tot_runoff in m^3/s
+    """
+    bool_vector = np.array( map( lambda x: x in selected_dates, all_dates) )
+    r_time_slice = tot_runoff[bool_vector, :]
+    r_tx_slice = np.sum( r_time_slice[:, cell_indices], axis= 1)
+    return r_tx_slice
+
 
 
 def main():
     """
 
     """
-    skip_ids = ['081007', '081002', "042607"]
+    skip_ids = ['081007', '081002', "042607", "090605"]
 
     #comment to plot for all ensemble members
     members.current_ids = []
@@ -433,11 +439,59 @@ def main():
         thePath = path_format % the_id
         [simIdToData[the_id], simIdToTimes[the_id], i_list, j_list] = data_select.get_data_from_file(thePath)
 
-    #path = 'data/streamflows/na/discharge_1990_01_01_00_00_na_fix.nc'
 
-    old = False #in the old version drainage and lon,lats in the file are 1D
+    old = True #in the old version drainage and lon,lats in the file are 1D
+
 
     [ data, times, i_list, j_list ] = data_select.get_data_from_file(path_to_analysis_driven)
+
+    cell_list = []
+    ij_to_cell = {}
+    prev_cell_indices = []
+    tot_rof = None
+    if old:
+        #surf_rof = data_select.get_data_from_file(path_format % ("aex",), field_name="")
+        the_path = path_format % ("aex")
+        static_data_path = "data/streamflows/hydrosheds_euler9/infocell9.nc"
+        #ntimes x ncells
+        tot_rof = data_select.get_field_from_file(the_path, field_name="total_runoff")
+        cell_areas = data_select.get_field_from_file(static_data_path, field_name="AREA")
+
+        #convert the runoff to m^3/s
+        tot_rof *= 1.0e6 * cell_areas[i_list, j_list] / 1.0e3
+
+
+        flow_dir_values = data_select.get_field_from_file(static_data_path,
+            field_name="flow_direction_value")[i_list, j_list]
+
+        cell_list = map(lambda i, j, the_id: Cell(id = the_id, ix = i, jy = j),
+                                i_list, j_list, xrange(len(i_list)))
+
+
+        ij_to_cell = dict( zip( zip(i_list, j_list), cell_list ))
+
+
+        for ix, jy, aCell, dir_val in zip( i_list, j_list, cell_list, flow_dir_values):
+            i_next, j_next = direction_and_value.to_indices(ix, jy, dir_val)
+            the_key = (i_next, j_next)
+            if ij_to_cell.has_key(the_key):
+                next_cell = ij_to_cell[the_key]
+            else:
+                next_cell = None
+            assert isinstance(aCell, Cell)
+            aCell.set_next(next_cell)
+
+        #determine list of indices of the previous cells for each cell
+        #in this case they are equal to the ids
+
+        for aCell in cell_list:
+            assert isinstance(aCell, Cell)
+            prev_cells = aCell.get_upstream_cells()
+            prev_cell_indices.append(map(lambda c: c.id, prev_cells))
+            prev_cell_indices[-1].append(aCell.id)
+
+
+
     if not old:
         da_2d = data_select.get_field_from_file(path_to_analysis_driven, 'accumulation_area')
         lons = data_select.get_field_from_file(path_to_analysis_driven, field_name = 'longitude')
@@ -476,10 +530,13 @@ def main():
     grid_drainages = []
     grid_lons = []
     grid_lats = []
-
-    plot_utils.apply_plot_params(font_size=9, width_pt=None, aspect_ratio=2)
-    gs = gridspec.GridSpec(5, 2)
+    plot_utils.apply_plot_params(width_pt= None, font_size=9, aspect_ratio=2.5)
+    #plot_utils.apply_plot_params(font_size=9, width_pt=None)
+    ncols = 2
+    gs = gridspec.GridSpec(5, ncols)
     fig = plt.figure()
+
+    assert isinstance(fig, Figure)
 
     current_subplot = 0
 
@@ -546,8 +603,8 @@ def main():
         print station.name
 
 
-        start_date = max( np.min(times), np.min(station.dates) )
-        end_date = min( np.max(times),  np.max(station.dates) )
+        start_date = max( np.min(times), np.min(station.dates))
+        end_date = min( np.max(times),  np.max(station.dates))
 
         if start_date.day > 1 or start_date.month > 1:
             start_date = datetime(start_date.year + 1, 1, 1,0,0,0)
@@ -591,8 +648,8 @@ def main():
                         simIdToContData[the_id][t] = simIdToData[the_id][t_index, index]
 
 
-        #if there is no continuous observations for the period
-        if not len(continuous_station_data): continue
+        #if the length of continuous observation is less than 10 years, skip
+        if len(continuous_station_data) < 3650: continue
 
         print 'Number of continuous years for station %s is %d ' % (station.id, num_of_continuous_years)
 
@@ -651,28 +708,77 @@ def main():
                 simIdToMeanModelData[the_id].append(np.mean(simIdToModelDataForDay[the_id]))
 
 
+         #skip stations with small discharge
+        #if np.max(mean_data_station) < 300:
+        #    continue
 
-        row = current_subplot// 2
-        col = current_subplot % 2
+        row = current_subplot// ncols
+        col = current_subplot % ncols
         ax = fig.add_subplot(gs[row, col])
+        assert isinstance(ax, Axes)
         current_subplot += 1
 
         #put "Streamflow label on the y-axis"
-        if row == 2 and col == 0:
-            ax.set_ylabel("Streamflow (${\\rm m^3/s}$)")
+        if row == 0 and col == 0:
+            ax.annotate("Streamflow (${\\rm m^3/s}$)", (0.025, 0.7) , xycoords = "figure fraction",
+                rotation = 90, va = "top", ha = "center")
+
+        selected_dates = sorted( continuous_station_data.keys() )
+        unrouted_stfl = get_unrouted_streamflow_for(selected_dates = selected_dates,
+            all_dates=times, tot_runoff=tot_rof, cell_indices=prev_cell_indices[index])
+
+        unrouted_daily_normals = data_select.get_means_for_stamp_dates(stamp_dates, all_dates= selected_dates,
+            all_data=unrouted_stfl)
+
+        #Calculate Nash-Sutcliff coefficient
+        mean_data_model = np.array(mean_data_model)
+        mean_data_station = np.array( mean_data_station )
+
+        #mod = _get_monthly_means(stamp_dates, mean_data_model)
+        #sta = _get_monthly_means(stamp_dates, mean_data_station)
+
+        month_dates = [ datetime(stamp_year, m, 1) for m in xrange(1,13) ]
+
 
         line1, = ax.plot(stamp_dates, mean_data_model, linewidth = 3, color = "b")
-
+        #line1, = ax.plot(month_dates, mod, linewidth = 3, color = "b")
         upper_model = np.max(mean_data_model)
 
         line2, = ax.plot(stamp_dates, mean_data_station, linewidth = 3, color = "r")
+        #line2, = ax.plot(month_dates, sta, linewidth = 3, color = "r")
 
+        #line3, = ax.plot(stamp_dates, unrouted_daily_normals, linewidth = 3, color = "y")
+
+
+        mod = mean_data_model
+        sta = mean_data_station
+
+        ns = 1.0 - np.sum((mod - sta) ** 2) / np.sum((sta - np.mean(sta)) ** 2)
+
+        if np.abs(ns) < 0.001:
+            ns = 0
+
+        corr_coef = np.corrcoef([mod, sta])[0,1]
+        ns_unr = 1.0 - np.sum((unrouted_daily_normals - sta) ** 2) / np.sum((sta - np.mean(sta)) ** 2 )
+        corr_unr = np.corrcoef([unrouted_daily_normals, sta])[0, 1]
+
+        da_diff = (da_2d[i, j] - station.drainage_km2) / station.drainage_km2 * 100
+        ax.annotate("ns = %.2f\nr = %.2f"
+                  % (ns, corr_coef), (0.95, 0.90), xycoords = "axes fraction",
+            va = "top", ha = "right",
+            font_properties = FontProperties(size = 9)
+        )
 
 
 
         #plot member simulation data
         lines_for_mems = []
         labels_for_mems = []
+
+        #lines_for_mems.append(line3)
+        #labels_for_mems.append("Unrouted total runoff")
+
+
         for the_id in members.current_ids:
             the_line, = ax.plot(stamp_dates, simIdToMeanModelData[the_id], "--", linewidth = 3)
             lines_for_mems.append(the_line)
@@ -683,15 +789,15 @@ def main():
         means_for_members = []
         for the_id in members.current_ids:
             means_for_members.append(np.mean(simIdToMeanModelData[the_id]))
-        the_error = ( np.mean(means_for_members) - np.mean(mean_data_station) ) / np.mean(mean_data_station) * 100
-        print "mean model error (%s): (m-o)/o * 100 %% = %.2f" % (station.id, the_error)
+
+
 
 
 
         upper_station = np.max(mean_data_station)
+        upper_unr = np.max(unrouted_daily_normals)
 
-
-        upper = max(upper_model, upper_station)
+        upper = np.max([upper_model, upper_station])
         upper = round(upper / 100 ) * 100
         half = round( 0.5 * upper / 100 ) * 100
         if upper <= 100:
@@ -702,6 +808,11 @@ def main():
         print 10 * '='
 
         ax.set_yticks([0, half , upper])
+        assert isinstance(station, Station)
+
+        print("i = {0}, j = {1}".format(indexObj.i, indexObj.j))
+        print(lons[i,j], lats[i,j])
+        print("id = {0}, da_sta = {1}, da_mod = {2}, diff = {3} %".format(station.id ,station.drainage_km2, da_2d[i,j], da_diff))
 
         grid_drainages.append(da_2d[i, j])
         grid_lons.append(lons[i, j])
@@ -712,7 +823,7 @@ def main():
 
 
 
-#        plot_swe_for_upstream(i_index = i, j_index = j, station_id = station.id)
+        #plot_swe_for_upstream(i_index = i, j_index = j, station_id = station.id)
 
 
 
@@ -726,19 +837,16 @@ def main():
 
 
         date_ticks = []
-
         for month in xrange(1,13):
-            the_date = datetime(stamp_dates[0].year,month, 1)
+            the_date = datetime(stamp_year, month, 1)
             date_ticks.append(the_date)
             date_ticks.append(the_date + timedelta(days = 15))
-
-
         ax.xaxis.set_ticks(date_ticks)
-        tls = ax.xaxis.get_majorticklabels()
+
+
+
         major_ticks = ax.xaxis.get_major_ticks()
 
-#        for itl, tl in enumerate(tls):
-#            tl.set_visible(itl % 4 != 1 )
 
         for imtl, mtl in enumerate(major_ticks):
             mtl.tick1line.set_visible(imtl % 2 == 0)
@@ -776,7 +884,7 @@ def main():
 #                  )
 
 
-    fig.tight_layout()
+    fig.tight_layout(pad = 2)
     fig.savefig('performance_error.png')
 
 
@@ -785,7 +893,7 @@ def main():
     
    # assert len(selected_dates_with_gw[0]) == len(selected_station_dates[0])
 
-    do_skill_calculation = False
+    do_skill_calculation = True
     if do_skill_calculation:
         calculate_skills(selected_stations,
                         stamp_dates, selected_station_values,
@@ -822,7 +930,7 @@ def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = Tru
     """
     document me
     """
-    plt.figure()
+    fig = plt.figure()
     if basemap is None:
         the_basemap = polar_stereographic.basemap
     else:
@@ -844,8 +952,18 @@ def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = Tru
     the_basemap.drawcoastlines()
     the_xs = []
     the_ys = []
+
+    xs = polar_stereographic.xs
+    ys = polar_stereographic.ys
+
+
+    dx = 0.01 * ( xs[i_list, j_list].max() - xs[i_list, j_list].min() )
+    dy = 0.01 * ( ys[i_list, j_list].max() - ys[i_list, j_list].min() )
+
+
     for station in selected_stations:
         x, y = the_basemap(station.longitude, station.latitude)
+
 
         xtext = 1.005 * x
         ytext = y
@@ -859,14 +977,20 @@ def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = Tru
         if station.id in ['081007']:
             xtext = 0.97 * x
 
-#        if station.id in ['093801']:
-#            ytext = 0.97 * y
-#            xtext = 0.97 * x
+        if station.id in ["090602"]:
+            ytext -= 7 * dy
+            xtext -= 5 * dx
+
+        if station.id in ["090613"]:
+            ytext += 4 * dy
+            xtext -= 6 * dx
+
 
         the_xs.append(x)
         the_ys.append(y)
 
         plt.annotate(station.id, xy = (x, y), xytext = (xtext, ytext),
+                    font_properties = FontProperties(size = 18),
                      bbox = dict(facecolor = 'white'), weight = "bold"
                      #arrowprops=dict(facecolor='black', shrink=0.001)
                      )
@@ -899,7 +1023,9 @@ def plot_selected_stations(selected_stations, plot_ts = True, save_to_file = Tru
 
         plt.xlim(x_min - dx, x_max + dx)
         plt.ylim(y_min - dy, y_max + dy)
-        plt.savefig('selected_stations.png',  bbox_inches='tight')
+
+        fig.tight_layout()
+        fig.savefig('selected_stations.png')
 
     if plot_ts:
         plt.figure()
@@ -945,7 +1071,7 @@ if __name__ == "__main__":
     application_properties.set_current_directory()
     print os.getcwd()
     #get_station_and_corresponding_model_data(path = 'data/streamflows/hydrosheds_euler10_spinup100yrs/aex_discharge_1970_01_01_00_00.nc')
-    main()
+    #main()
 
-    #plot_station_positions(id_list=["104001", "093806", "092715", "061502", "040830", "093801"])
+    plot_station_positions(id_list=["104001", "093806", "092715", "061502", "040830", "093801"])
     print "Hello World"

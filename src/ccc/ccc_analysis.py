@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 
 __author__ = 'huziy'
@@ -98,7 +99,40 @@ def get_monthly_normals(data_folder_path, start_date = None, end_date = None):
     pass
 
 
+def _get_routing_indices():
+    """
+    Used for the plot domain centering
+    """
+    from data import data_select
+    i_indices, j_indices = data_select.get_indices_from_file(path = "data/streamflows/hydrosheds_euler9/aex_discharge_1970_01_01_00_00.nc")
+    return i_indices, j_indices
+
+
+def _test():
+    djf = get_seasonal_mean("/home/huziy/skynet1_rech3/crcm4_data/aex_p1sno", start_date=datetime(1980,1,1),
+                    end_date=datetime(1997,12,31), months=[1,2,12]
+                )
+    import matplotlib.pyplot as plt
+    from plot2D.map_parameters import polar_stereographic
+    from util import plot_utils
+
+    x, y = polar_stereographic.xs, polar_stereographic.ys
+    i_array, j_array = _get_routing_indices()
+    x_min, x_max, y_min, y_max = plot_utils.get_ranges(x[i_array, j_array], y[i_array, j_array])
+
+    assert isinstance(djf, np.ndarray)
+    save = djf[i_array, j_array]
+    djf = np.ma.masked_all(djf.shape)
+    djf[i_array, j_array] = save
+    plt.pcolormesh(x, y, djf)
+    plt.colorbar()
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    plt.show()
+
+
 def main():
+    _test()
     #TODO: implement
     pass
 

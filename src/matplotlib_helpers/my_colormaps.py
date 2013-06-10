@@ -45,7 +45,180 @@ def get_sign_count_cmap(ncolors = 5):
     pass
 
 
-def get_red_blue_colormap(ncolors = 1024):
+def get_blue_colormap(ncolors = 1024):
+
+    """
+    :rtype : LinearSegmentedColormap
+    """
+    red_numbers = [
+#        0.600000023841858,
+#        0.723529458045960,
+#        0.847058832645416,
+#        1,
+#        1,
+#        1,
+#        1,
+#        1,
+        0.833333313465118,
+        0.694444417953491,
+        0.555555522441864,
+        0.416666656732559,
+        0.277777761220932,
+        0.138888880610466,
+        0,
+        0.0784313753247261
+    ]
+
+    green_numbers = [
+#        0.200000002980232,
+#        0.180392161011696,
+#        0.160784319043159,
+#        0,
+#        0.187500000000000,
+#        0.375000000000000,
+#        0.562500000000000,
+#        0.750000000000000,
+        0.833333313465118,
+        0.694444417953491,
+        0.555555522441864,
+        0.416666656732559,
+        0.277777761220932,
+        0.138888880610466,
+        0,
+        0.168627455830574
+    ]
+
+    blue_numbers = [
+#        0,
+#        0,
+#        0,
+#        0,
+#        0.187500000000000,
+#        0.375000000000000,
+#        0.562500000000000,
+#        0.750000000000000,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0.549019634723663
+    ]
+    dx = 1.0 / float(len(red_numbers) - 1)
+    reds = []
+    greens = []
+    blues = []
+    x = 0
+    for i in range(len(red_numbers)):
+
+        if i == len(red_numbers) - 1:
+            x = 1
+        reds.append((x,red_numbers[i], red_numbers[i]))
+        greens.append((x, green_numbers[i], green_numbers[i]))
+        blues.append((x, blue_numbers[i], blue_numbers[i]))
+        x += dx
+
+
+    cdict = {
+        'blue':  blues,
+        'green': greens,
+        'red':  reds
+    }
+
+    return mpl.colors.LinearSegmentedColormap('diff_colormap', cdict, ncolors)
+
+
+
+
+
+def get_red_colormap(ncolors = 1024):
+    red_numbers = [
+        0.600000023841858,
+        0.723529458045960,
+        0.847058832645416,
+        1,
+        1,
+        1,
+        1,
+        1,
+#        0.833333313465118,
+#        0.694444417953491,
+#        0.555555522441864,
+#        0.416666656732559,
+#        0.277777761220932,
+#        0.138888880610466,
+#        0,
+#        0.0784313753247261
+    ]
+
+    green_numbers = [
+        0.200000002980232,
+        0.180392161011696,
+        0.160784319043159,
+        0,
+        0.187500000000000,
+        0.375000000000000,
+        0.562500000000000,
+        0.750000000000000,
+#        0.833333313465118,
+#        0.694444417953491,
+#        0.555555522441864,
+#        0.416666656732559,
+#        0.277777761220932,
+#        0.138888880610466,
+#        0,
+#        0.168627455830574
+    ]
+
+    blue_numbers = [
+        0,
+        0,
+        0,
+        0,
+        0.187500000000000,
+        0.375000000000000,
+        0.562500000000000,
+        0.750000000000000,
+#        1,
+#        1,
+#        1,
+#        1,
+#        1,
+#        1,
+#        1,
+#        0.549019634723663
+    ]
+    red_numbers.reverse()
+    blue_numbers.reverse()
+    green_numbers.reverse()
+
+    dx = 1.0 / float(len(red_numbers) - 1)
+    reds = []
+    greens = []
+    blues = []
+    x = 0
+    for i in range(len(red_numbers)):
+
+        if i == len(red_numbers) - 1:
+            x = 1
+        reds.append((x,red_numbers[i], red_numbers[i]))
+        greens.append((x, green_numbers[i], green_numbers[i]))
+        blues.append((x, blue_numbers[i], blue_numbers[i]))
+        x += dx
+
+
+    cdict = {
+        'blue':  blues,
+        'green': greens,
+        'red':  reds
+    }
+
+    return mpl.colors.LinearSegmentedColormap('diff_colormap', cdict, ncolors)
+
+
+def get_red_blue_colormap(ncolors = 1024, reversed = False):
     red_numbers = [
         0.600000023841858,
         0.723529458045960,
@@ -103,6 +276,11 @@ def get_red_blue_colormap(ncolors = 1024):
         0.549019634723663
     ]
 
+    if reversed:
+        blue_numbers.reverse()
+        red_numbers.reverse()
+        green_numbers.reverse()
+
     dx = 1.0 / float(len(red_numbers) - 1)
     reds = []
     greens = []
@@ -117,7 +295,7 @@ def get_red_blue_colormap(ncolors = 1024):
         blues.append((x, blue_numbers[i], blue_numbers[i]))
         x += dx
 
-   
+
     cdict = {
         'blue':  blues,
         'green': greens,
@@ -271,7 +449,7 @@ def test():
     fig = plt.figure(figsize=(8,3))
     ax1 = fig.add_axes([0.05, 0.65, 0.9, 0.15])
 
-    cb1 = mpl.colorbar.ColorbarBase(ax1, cmap = get_sign_count_cmap(ncolors = 5),
+    cb1 = mpl.colorbar.ColorbarBase(ax1, cmap = get_red_colormap(ncolors = 20),
                                    orientation='horizontal')
     plt.show()
 if __name__ == "__main__":

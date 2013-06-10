@@ -5,6 +5,26 @@ __date__ ="$Aug 17, 2011 3:49:28 PM$"
 import numpy as np
 
 
+def get_boundaries_for_colobar(vmin, vmax, n_colors, round_func = int):
+    if vmin * vmax < 0:
+        if n_colors % 2:
+            n_neg = n_colors // 2
+            n_pos = n_neg + 1
+        else:
+            n_neg = n_pos = n_colors / 2
+
+        pos_delta = vmax / float(n_pos)
+        neg_delta = vmin / float(n_neg)
+        pos_borders = [i * pos_delta for i in xrange(1, n_pos + 1)]
+        neg_borders = [i * neg_delta for i in xrange(1, n_neg + 1)]
+        neg_borders.reverse()
+        res = neg_borders + [0] + pos_borders
+    else:
+        delta = (vmax - vmin) / float(n_colors)
+        res = [vmin + delta * i for i in xrange(n_colors + 1)]
+    return map(round_func, res)
+
+
 def get_closest_tick_value(nticks, lower_limit):
     """
     nticks - number of ticks in the colorbar

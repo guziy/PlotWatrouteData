@@ -1,6 +1,5 @@
 from matplotlib.font_manager import FontProperties
 from matplotlib.transforms import Affine2D, Bbox
-from mpl_toolkits.basemap import NetCDFFile
 import os.path
 import sys
 __author__="huziy"
@@ -70,7 +69,7 @@ class BasinIndices():
 
 def read_basin_indices(path, minimum_accumulated_cells = -1):
     result = []
-    nc = NetCDFFile(path)
+    nc = Dataset(path)
 
     for k, v in nc.variables.iteritems():
         result.append(BasinIndices(k, v.data))
@@ -392,7 +391,7 @@ def calculate_basin_means_and_stds(bin_dates=None, current_start_date=datetime(1
     path = os.path.join(data_folder, '%s_discharge_1970_01_01_00_00.nc' % members.current_ids[0])
     print 'stamp_year = ', stamp_year
     print 'start month of stamp year = ', start_month_of_stamp_year
-    nc = NetCDFFile(path)
+    nc = Dataset(path)
     i_ind = nc.variables['x-index'][:]
     j_ind = nc.variables['y-index'][:]
 
@@ -436,7 +435,7 @@ def calculate_basin_means_and_stds(bin_dates=None, current_start_date=datetime(1
     for current_member in members.current_ids:
         filename = '%s_discharge_%s.nc' % (current_member, current_start_date.strftime(TIME_FORMAT))
         path = os.path.join(data_folder, filename)
-        nc_current = NetCDFFile(path)
+        nc_current = Dataset(path)
 
         basin_to_occ_current = calculate_occurences_for_member(nc = nc_current, bin_dates = bin_dates,
                                                                high_flow = high_flow,
@@ -458,7 +457,7 @@ def calculate_basin_means_and_stds(bin_dates=None, current_start_date=datetime(1
         filename = '%s_discharge_%s.nc' % (future_member, future_start_date.strftime(TIME_FORMAT))
         path = os.path.join(data_folder, filename)
 
-        nc_future = NetCDFFile(path)
+        nc_future = Dataset(path)
         basin_to_occ_future = calculate_occurences_for_member(nc = nc_future, bin_dates = bin_dates,
                                                                high_flow = high_flow,
                                                                basin_indices = basin_indices,
@@ -695,7 +694,7 @@ def plot_scatter_merge_for_months(current_basin2mean = None,
                   start_date = None, end_date = None):
 
     n_years = 30.0
-    font_props = FontProperties(weight="normal", size = 6)
+    font_props = FontProperties(weight="normal", size = 9)
 
     basins = current_basin2mean.keys()
 
@@ -713,8 +712,8 @@ def plot_scatter_merge_for_months(current_basin2mean = None,
         elif b.name in southern:
             basin_groups[2].append(b)
 
-    plot_utils.apply_plot_params(width_pt=None, font_size=9, height_cm=20, width_cm=16)
-    fig = plt.figure()
+
+    fig = plt.figure(dpi=500)
     gs  = gridspec.GridSpec(3,1)
 
     main_subplots = []
@@ -843,7 +842,7 @@ def plot_scatter_merge_for_months(current_basin2mean = None,
 
 
         axins.xaxis.set_ticks(date_ticks)
-        axins.tick_params(labelsize = 6)
+        axins.tick_params(labelsize = 12)
         major_ticks = axins.xaxis.get_major_ticks()
         for i, mtl in enumerate(major_ticks):
             mtl.tick1line.set_visible(i % 2 == 0)
@@ -852,7 +851,7 @@ def plot_scatter_merge_for_months(current_basin2mean = None,
 
 
     #plt.tight_layout()
-    plt.savefig(prefix + "_occurrence_scatter_for_months.png")
+    plt.savefig(prefix + "_occurrence_scatter_for_months.eps", bbox_inches = "tight")
 
     pass
 
@@ -1243,6 +1242,7 @@ if __name__ == "__main__":
     application_properties.set_current_directory()
     data_folder = 'data/streamflows/hydrosheds_euler9'
 #compare current and future occurences
+    plot_utils.apply_plot_params(width_pt=None, font_size=12, height_cm=25, width_cm=20)
     main(data_folder = data_folder, event_duration = timedelta(days = 15), prefix = 'low', high_flow = False)
     main(data_folder = data_folder, event_duration = timedelta(days = 1), prefix = 'high')
 
