@@ -1,4 +1,5 @@
 from multiprocessing.pool import Pool
+from netCDF4 import Dataset
 import os
 import pickle
 import re
@@ -446,6 +447,37 @@ def plot_precip(data_path = "/home/huziy/skynet1_rech3/crcm4_data"):
 
     pass
 
+
+
+
+def _generate_mask_of_domain_of_interest( x_indices, y_indices):
+    path = "mask_of_quebec_basins_on_amno_ps_grid.nc"
+    ds = Dataset(path, mode = "w")
+
+
+    the_shape = polar_stereographic.lons.shape
+
+    mask = np.zeros(the_shape, dtype=int)
+    mask[x_indices, y_indices] = 1
+
+
+    ds.createDimension("lon", the_shape[0])
+    ds.createDimension("lat", the_shape[1])
+
+    maskVar = ds.createVariable("mask", "b", dimensions=("lon", "lat"))
+
+
+    lonVar = ds.createVariable("lon", "f4", dimensions=("lon", "lat"))
+    latVar = ds.createVariable("lat", "f4", dimensions=("lon", "lat"))
+
+
+    maskVar[:] = mask[:]
+    lonVar[:] = polar_stereographic.lons
+    latVar[:] = polar_stereographic.lats
+
+    ds.close()
+    pass
+
 def plot_swe():
     seasons = ["(a) Annual", " (b) Winter (DJF)", "(c) Spring (MAM)", "(d) Summer (JJA)", "(e) Fall (SON)"]
     months =  [range(1, 13), [12, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]  ]
@@ -458,7 +490,8 @@ def plot_swe():
     i_array, j_array = _get_routing_indices()
     x_min, x_max, y_min, y_max = plot_utils.get_ranges(x[i_array, j_array], y[i_array, j_array])
 
-
+    _generate_mask_of_domain_of_interest(i_array, j_array)
+    if True: return
 
     plot_utils.apply_plot_params(width_pt= None, font_size=9, aspect_ratio=2.5)
     fig = plt.figure()
